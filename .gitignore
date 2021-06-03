@@ -1,3 +1,2 @@
-*
-!.gitignore
-!loesung.c
+CMakeLists.txt
+cmake-build-debug
