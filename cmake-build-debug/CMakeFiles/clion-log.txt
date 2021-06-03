@@ -1,0 +1,4 @@
+"D:\Programme\CLion 2021.1\bin\cmake\win\bin\cmake.exe" -DCMAKE_BUILD_TYPE=Debug -G "CodeBlocks - MinGW Makefiles" C:\Users\Justin\CLionProjects\AntGraph
+-- Configuring done
+-- Generating done
+-- Build files have been written to: C:/Users/Justin/CLionProjects/AntGraph/cmake-build-debug
