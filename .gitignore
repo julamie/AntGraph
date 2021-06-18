@@ -1,4 +1,4 @@
-./CMakeLists.txt
-/cmake-build-debug
-/example_testcases
-./loesung
+*
+!loesung.c
+!programmieraufgabe.pdf
+!run.sh
