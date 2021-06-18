@@ -1,20 +1,21 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
 
+typedef char* NodeID;
+
 struct NodeList {
-    uint32_t size;
-    uint32_t len;
+    unsigned int size;
+    unsigned int len;
     struct Node *nodes;
 };
 
 struct Node {
-    char *id;
-    uint32_t value;
+    NodeID *id;
+    unsigned int value;
     struct Node *neighbours;
-    uint32_t numNeighbours;
+    unsigned int numNeighbours;
 };
 
 struct NodeList nodelist;
@@ -27,34 +28,65 @@ int init() {
     return 0;
 }
 
-char* parseLeftSide() {
-    char *id;
+void throwError(char* msg) {
+    fprintf(stderr, "%s\n", msg);
+    exit(EXIT_FAILURE);
+}
+
+unsigned int parseValue() {
+    unsigned int value = 5;
+
+    if(scanf("%u", &value) != 1) throwError("Error when parsing value. Unsigned int expected");
+    if (getchar() != '\n') throwError("Error when parsing value. Linefeed after value expected");
+
+    return value;
+}
+
+// allocates memory to a new NodeID
+NodeID createNewID(unsigned int size) {
+    NodeID id;
+
+    id = realloc(NULL, sizeof(*id) * size);
+    if (id == NULL) throwError("Error allocating memory for new NodeID");
+
+    return id;
+}
+
+bool spaceIsFull(unsigned int len, unsigned int size) {
+    return len == size;
+}
+
+// adds a char to an existing NodeID and keeps enough space, returns whether new memory has been allocated
+NodeID addCharToNodeID(NodeID id, char c, unsigned int size, unsigned int length) {
+    id[length++] = c;
+
+    // increase size of id if necessary
+    if (length == size) {
+        size = size * 2;
+        id = realloc(id, sizeof(*id) * size);
+        if (id == NULL) throwError("Error when allocating more memory for NodeID");
+    }
+
+    return id;
+}
+
+NodeID parseLeftSide() {
+    NodeID id;
     char currChar;
-    uint32_t size = 10;
-    uint32_t len = 0;
+    unsigned int size = 10;
+    unsigned int len = 0;
 
     // make space for id
-    id = realloc(NULL, sizeof(*id) * size);
-    if (id == NULL) {
-        // TODO: ERROR
-    }
+    id = createNewID(size);
 
     // add every allowed char to id
     currChar = getchar();
     while ((currChar >= 'a' && currChar <= 'z') ||
            (currChar >= '0' && currChar <= '9')) {
 
-        id[len++] = currChar;
+        id = addCharToNodeID(id, currChar, size, len++);
+        if (spaceIsFull(len, size)) size = size * 2;
 
-        // increase size of id if necessary
-        if (len == size) {
-            size = size * 2;
-
-            id = realloc(id, sizeof(*id) * size);
-            if (id == NULL) {
-                // TODO: ERROR
-            }
-        }
         currChar = getchar();
     }
 
@@ -62,16 +94,17 @@ char* parseLeftSide() {
     id[len++] = '\0';
     id = realloc(id, sizeof(*id) * len);
 
-    // at the end of id only a colon is allowed
+    // check if the list of new nodes is finished
     if (currChar == 'A') {
-        if (getchar() != ':') {
-            // TODO: ERROR
-        }
+        if (getchar() != ':') throwError("Error when parsing starting node. Colon after 'A' expected");
 
         free(id);
-        id = "A";
-    } else if (currChar != ':') {
-        // TODO: ERROR
+        return "A";
+    } else if (len == 0) {
+        throwError("Error when parsing left side. No empty IDs allowed");
+    }
+    else if (currChar != ':') {
+        throwError("Error when parsing left side. Colon or alphanumerical value after NodeID expected");
     }
 
     return id;
@@ -80,119 +113,118 @@ char* parseLeftSide() {
 void parseRightSide() {
     char* id;
     char currChar;
-    uint32_t size = 10;
-    uint32_t len = 0;
+    unsigned int size = 10;
+    unsigned int len = 0;
 
     // make space for id
-    id = realloc(NULL, sizeof(*id) * size);
-    if (id == NULL) {
-        // TODO: ERROR
-    }
+    id = createNewID(size);
 
     // add every allowed char to id
     currChar = getchar();
     while ((currChar >= 'a' && currChar <= 'z') ||
            (currChar >= '0' && currChar <= '9')) {
 
-        id[len++] = currChar;
+        id = addCharToNodeID(id, currChar, size, len++);
+        if (spaceIsFull(len, size)) size = size * 2;
 
-        // increase size of id if necessary
-        if (len == size) {
-            size = size * 2;
-
-            id = realloc(id, sizeof(*id) * size);
-            if (id == NULL) {
-                // TODO: ERROR
-            }
-        }
         currChar = getchar();
     }
 
     // end the string and clip it behind the '\0'
     id[len++] = '\0';
     id = realloc(id, sizeof(*id) * len);
-    printf("Rest: %s\n", id);
 
+    if (len != 0) {
+        printf("Rest: %s\n", id);
+    }
+
+    // continue parsing
     if (currChar == ',') {
         parseRightSide();
     } else if (currChar == '-') {
-        // TODO: Make correct
-        int value;
-        if(scanf("%d", &value) != 1) {
-            // TODO: ERROR
-        }
-        printf("Value: %d\n", value);
-
-        if (getchar() != '\n') {
-            // TODO: ERROR
-        }
+        printf("Value: %d\n", parseValue());
+    } else if (len == 0) {
+        throwError("Error while parsing right side. No empty IDs allowed");
     } else if (currChar != '\n') {
-        // TODO: ERROR
+        throwError("Error when parsing right side. Comma, dash or linefeed expected");
     }
+
+    free(id);
 }
 
+NodeID parseStartingNodeID() {
+    char* startingNodeID;
+    char currChar;
+    unsigned int size = 10;
+    unsigned int len = 0;
+
+    // make space for startingNodeID
+    startingNodeID = createNewID(size);
+
+    // add every allowed char to startingNodeID
+    currChar = getchar();
+    while ((currChar >= 'a' && currChar <= 'z') ||
+           (currChar >= '0' && currChar <= '9')) {
+
+        startingNodeID = addCharToNodeID(startingNodeID, currChar, size, len++);
+        if (spaceIsFull(len, size)) size = size * 2;
+
+        currChar = getchar();
+    }
+
+    // end the string and clip it behind the '\0'
+    startingNodeID[len++] = '\0';
+    startingNodeID = realloc(startingNodeID, sizeof(*startingNodeID) * len);
+
+    // only a newline is allowed after id
+    if (currChar != '\n') {
+        throwError("Error after parsing starting node id. Alphanumerical char or linefeed expected");
+    }
+
+    return startingNodeID;
+}
+
+unsigned int parseNumSteps() {
+    // handle errors
+    if(getchar() != 'I') throwError("Error when parsing number of steps. 'I' expected");
+    if (getchar() != ':') throwError("Error when parsing number of steps. ':' after 'I' expected");
+
+    unsigned int numberSteps = parseValue();
+
+    if (getchar() != EOF) {
+        throwError("Error when parsing number of steps. End of file expected");
+    }
+
+    return numberSteps;
+}
+
+// run each line of stdin
 int scanContents() {
     bool finished = false;
     while (!finished) {
-        char* id = parseLeftSide();
-        printf("ID: %s\n", id);
-        parseRightSide();
+        NodeID currNodeID = parseLeftSide();
 
-        if (strcmp(id, "A") == 0) {
+        // parse NodeID of starting node
+        if (strcmp(currNodeID, "A") == 0) {
+            NodeID startingNodeID = parseStartingNodeID();
+            printf("Starting NodeID: %s\n", startingNodeID);
+            unsigned int numSteps = parseNumSteps();
+            printf("Number of steps: %u\n", numSteps);
+
+            free(startingNodeID);
             finished = true;
+        } else {
+            printf("ID: %s\n", currNodeID);
+            free(currNodeID);
+            parseRightSide();
         }
     }
-
-    /*struct Node node;
-    node.id = malloc(sizeof(*node.id) * 100);
-    char* rest = malloc(sizeof(*rest) * 100);
-
-    while (scanf("%[0-9a-z]", node.id) == 1) {
-        printf("NodeID: %s\n", node.id);
-
-        if (getchar() != ':') {
-            // TODO: ERROR
-        }
-
-        int finished = 0;
-        while(!finished) {
-            if(scanf("%[0-9a-z]", rest) != 1) {
-                if(getchar() != '-') {
-                    // TODO: ERROR
-                } else {
-
-                }
-            }
-            printf("Rest: %s\n", rest);
-
-            char x = getchar();
-            if (x == '\n') {
-                finished = 1;
-            } else if (x == '-') {
-                int value;
-
-                if(scanf("%d", &value) != 1) {
-                    // TODO: ERROR
-                }
-
-                node.value = value;
-                printf("NodeValue: %d\n", node.value);
-                if (getchar() != '\n') {
-                    // TODO: ERROR
-                }
-
-                finished = 1;
-            } else if (x != ',') {
-                // TODO: ERROR
-            }
-
-        }
-        printf("\n");
-    }*/
 
     return 0;
 }
 
 int main() {
     scanContents();
+
+
 }
