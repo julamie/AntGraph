@@ -1,103 +1,119 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
-#include <string.h>
+//#include <stdbool.h>
+//#include <string.h>
 
-typedef char* NodeID;
-typedef struct Node Node;
-typedef struct NodeList NodeList;
+typedef char* ID; // an ID is a string
 
-// -------------------------------------------------------------
+typedef struct {
+    ID value;
+    unsigned int len;
+    unsigned int size;
+} NodeID;
 
-struct NodeList {
+typedef struct {
+    NodeID *id;
+    NodeID *neighbours;
+    unsigned int value;
+    unsigned int numNeighbours;
+} Node;
+
+typedef struct {
+    Node** nodes;
     unsigned int size;
     unsigned int len;
-    Node* nodes;
-};
-
-struct Node {
-    NodeID id;
-    unsigned int value;
-    NodeID *neighbours;
-    unsigned int numNeighbours;
-};
-
-struct NodeList nodelist;
+} NodeList;
 
 // -------------------------------------------------------------
 
+NodeList nodelist;
+
+// -------------------------------------------------------------
+
+// frees all allocated memory
+void freeEverything() {
+    // free all NodeID values
+    for (unsigned int i = 0; i < nodelist.len; i++) {
+        free(nodelist.nodes[i]->id->value);
+    }
+    // free the list of nodes
+    free(nodelist.nodes);
+}
+
+// prints an error message and aborts the program
 void throwError(char* msg) {
     fprintf(stderr, "%s\n", msg);
+    freeEverything();
     exit(EXIT_FAILURE);
 }
 
 // -------------------------------------------------------------
 
-// allocates memory to a new NodeID
-NodeID createNewID(unsigned int size) {
-    NodeID id = NULL;
+// allocates memory for a new NodeID
+void createNewID(NodeID* nodeID, unsigned int size) {
+    nodeID->value = malloc(sizeof(char) * size);
+    if (nodeID->value == NULL) throwError("Error allocating memory for new NodeID");
 
-    NodeID temp = realloc(NULL, sizeof(*id) * size);
-    if (temp == NULL) throwError("Error allocating memory for new NodeID");
-    else id = temp;
-
-    return id;
+    nodeID->len = 0;
+    nodeID->size = size;
 }
 
-Node createNewNode(NodeID id) {
-    Node node;
+// adds a char to a NodeID and keeps enough space
+void addCharToNodeID(NodeID* id, char c) {
+    if (id->len == id->size) {
+        id->size *= 2;
 
-    node.id = id;
-    node.value = 0;
-    node.neighbours = NULL;
-    node.numNeighbours = 0;
-
-    return node;
-}
-
-NodeList createNewNodeList(unsigned int size) {
-    NodeList list;
-
-    list.size = size;
-    list.len = 0;
-
-    Node* temp = malloc(sizeof(Node) * nodelist.size);
-    if (temp == NULL) throwError("Error when allocating memory for new NodeList");
-    else list.nodes = temp;
-
-    return list;
-}
-
-// adds a char to an existing NodeID and keeps enough space, returns whether new memory has been allocated
-void addCharToNodeID(NodeID id, char c, unsigned int size, unsigned int length) {
-    id[length++] = c;
-
-    // increase size of id if necessary
-    if (length == size) {
-        size = size * 2;
-
-        NodeID temp = realloc(id, sizeof(*id) * size);
+        ID temp = realloc(id->value, sizeof(char) * id->size);
         if (temp == NULL) throwError("Error when allocating more memory for NodeID");
-        else id = temp;
+        else id->value = temp;
+    }
+
+    // check for disallowed char in ID
+    if (c == '\0') {
+        id->value[id->len] = c;
+        id->size = id->len;
+    }
+    else if ((c < 'a' || c > 'z') &&
+        (c < '0' || c > '9')) {
+        throwError("Only lowercase alphanumerical values allowed.");
+    }
+    else {
+        id->value[id->len++] = c;
     }
 }
 
-// doubles the size of an array of nodes
-void increaseSizeOfList(Node* list, unsigned int size) {
-    Node* temp = realloc(list, sizeof(*list) * size * 2);
-    if (temp == NULL) throwError("Error when increasing size of list");
-    else list = temp;
+// creates a new node with a pointer to an ID
+void createNewNode(Node* node, NodeID *id) {
+    node->id = id;
+    node->value = 0;
+    node->neighbours = NULL;
+    node->numNeighbours = 0;
 }
 
-void addToList(NodeList* list, Node node) {
-    list->nodes[nodelist.len] = node;
-    list->len++;
+// creates a new NodeList with specified size
+void createNewNodeList(NodeList *list, unsigned int size) {
+    list->size = size;
+    list->len = 0;
 
-    if (list->len == list->size) increaseSizeOfList(list->nodes, list->size);
+    list->nodes = malloc(sizeof(**list->nodes) * list->size);
+    if (list->nodes == NULL) throwError("Error when allocating memory for new NodeList");
+}
+
+// adds a pointer to a node to a nodeList
+void addNodeToNodeList(NodeList *list, Node *node) {
+    if (list->len == list->size) {
+        list->size *= 2;
+
+        Node** temp = realloc(list->nodes, sizeof(**list->nodes) * list->size);
+        if (temp == NULL) throwError("Error when increasing size of list");
+        else list->nodes = temp;
+    }
+
+    list->nodes[list->len++] = node;
 }
 
 // -------------------------------------------------------------
-
+/*
 // reads an unsigned int from stdin and returns it
 unsigned int parseValue() {
     unsigned int value = 5;
@@ -139,8 +155,8 @@ Node parseLeftSide() {
     if (currChar == 'A') {
         if (getchar() != ':') throwError("Error when parsing starting node. Colon after 'A' expected");
 
-        free(id);
-        node = createNewNode("A");
+        id = "A";
+        node = createNewNode(&id);
         return node;
     } else if (len == 0) {
         free(id);
@@ -152,19 +168,20 @@ Node parseLeftSide() {
     }
 
     // create new node and add to nodelist
-    node = createNewNode(id);
+    node = createNewNode(&id);
     addToList(&nodelist, node);
 
     return node;
 }
 
 NodeList parseRightSide(Node* leftSideNode) {
-    NodeList list = createNewNodeList(5);
+    NodeList list;
     NodeID id;
     char currChar;
     unsigned int size;
     unsigned int len;
 
+    initNodeList(&list, 5);
     // parse every id while there is a comma after it
     do {
         size = 10;
@@ -191,7 +208,7 @@ NodeList parseRightSide(Node* leftSideNode) {
 
         if (len != 0) {
             printf("Rest: %s\n", id);
-            Node newNode = createNewNode(id);
+            Node newNode = createNewNode(&id);
             addToList(&list, newNode); // add id to result array
         }
     } while (currChar == ',');
@@ -269,7 +286,7 @@ int scanContents() {
         Node currNode = parseLeftSide();
 
         // parse NodeID of starting node
-        if (strcmp(currNode.id, "A") == 0) {
+        if (strcmp(*currNode.id, "A") == 0) {
             NodeID startingNodeID = parseStartingNodeID();
             printf("Starting NodeID: %s\n", startingNodeID);
             unsigned int numSteps = parseNumSteps();
@@ -278,23 +295,47 @@ int scanContents() {
             //free(startingNodeID);
             finished = true;
         } else {
-            printf("ID: %s\n", currNode.id);
+            printf("ID: %s\n", *currNode.id);
             parseRightSide(&currNode);
         }
+
     }
 
     return 0;
 }
 
 int init() {
-    nodelist = createNewNodeList(10);
+    initNodeList(&nodelist, 10);
 
     return 0;
-}
+}*/
 
 int main() {
+    /*
     init();
-    scanContents();
+    scanContents();*/
 
+    NodeID testID1;
+    NodeID testID2;
+    Node testNode1;
+    Node testNode2;
+    createNewID(&testID1, 10);
+    createNewID(&testID2, 10);
+
+    char c = 0x61;
+    for (int i = 0; i < 1000; i++) {
+        addCharToNodeID(&testID1, (char) (c + i % 26));
+        addCharToNodeID(&testID2, (char) (c + (i*2) % 26));
+    }
+    addCharToNodeID(&testID1, '\0');
+    addCharToNodeID(&testID2, '\0');
+    createNewNode(&testNode1, &testID1);
+    createNewNode(&testNode2, &testID2);
+
+    createNewNodeList(&nodelist, 10);
+    addNodeToNodeList(&nodelist, &testNode1);
+    addNodeToNodeList(&nodelist, &testNode2);
+
+    freeEverything();
     return 0;
 }
