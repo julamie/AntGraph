@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-//#include <stdbool.h>
+#include <stdbool.h>
 //#include <string.h>
 
 typedef char* ID;
@@ -44,7 +44,7 @@ void freeEverything() {
 void throwError(char* msg) {
     fprintf(stderr, "%s\n", msg);
     freeEverything();
-    exit(EXIT_FAILURE);
+    exit(-1);
 }
 
 // -------------------------------------------------------------
@@ -64,7 +64,11 @@ void addCharToNodeID(NodeID* id, char c) {
         id->size *= 2;
 
         ID temp = realloc(id->value, sizeof(char) * id->size);
-        if (temp == NULL) throwError("Error when allocating more memory for NodeID");
+        if (temp == NULL) {
+            free(id);
+            throwError("Error when allocating more memory for NodeID");
+            exit(-1); // unnecessary
+        }
         else id->value = temp;
     }
 
@@ -100,7 +104,10 @@ void addNodeToNodeList(NodeList *list, Node *node) {
         list->size *= 2;
 
         Node** temp = realloc(list->nodes, sizeof(**list->nodes) * list->size);
-        if (temp == NULL) throwError("Error when increasing size of list");
+        if (temp == NULL) {
+            free(node);
+            throwError("Error when increasing size of list");
+        }
         else list->nodes = temp;
     }
 
@@ -119,73 +126,49 @@ unsigned int parseValue() {
     return value;
 }*/
 
-// gives a node its ID
-void parseLeftSide(Node* node, NodeID* id) {
+// gives a node its ID, returns whether there are more left sides to be parsed
+bool parseLeftSide(Node* node, NodeID* id) {
     char currChar;
 
     createNewID(id, 10);
 
     // add every allowed char to id
     currChar = (char) getchar();
-    while ((currChar >= 'a' && currChar <= 'z') ||
-           (currChar >= '0' && currChar <= '9')) {
-
-        addCharToNodeID(id, currChar);
-
-        currChar = (char) getchar();
-    }
-    addCharToNodeID(id, '\0');
-
-    createNewNode(node, id);
-    addNodeToNodeList(&nodelist, node);
-    /*
-    Node node;
-    NodeID id;
-    char currChar;
-    unsigned int size = 10;
-    unsigned int len = 0;
-
-    // make space for id
-    id = createNewID(size);
-
-    // add every allowed char to id
-    currChar = (char) getchar();
-    while ((currChar >= 'a' && currChar <= 'z') ||
-           (currChar >= '0' && currChar <= '9')) {
-
-        addCharToNodeID(id, currChar, size, len++);
-        if (len == size) size = size * 2;
-
-        currChar = (char) getchar();
-    }
-
-    // end the string and clip it behind the '\0'
-    id[len++] = '\0';
-    NodeID temp = realloc(id, sizeof(*id) * len);
-    if (temp == NULL) throwError("Error when removing empty space from NodeID");
-    else id = temp;
 
     // check if the list of new nodes is finished
     if (currChar == 'A') {
         if (getchar() != ':') throwError("Error when parsing starting node. Colon after 'A' expected");
 
-        id = "A";
-        node = createNewNode(&id);
-        return node;
-    } else if (len == 0) {
-        free(id);
-        throwError("Error when parsing left side. No empty IDs allowed");
+        return false;
     }
-    else if (currChar != ':') {
-        free(id);
-        throwError("Error when parsing left side. Colon or alphanumerical value after NodeID expected");
+    // parse ID
+    else {
+        while ((currChar >= 'a' && currChar <= 'z') ||
+               (currChar >= '0' && currChar <= '9')) {
+
+            addCharToNodeID(id, currChar);
+
+            currChar = (char) getchar();
+        }
+        addCharToNodeID(id, '\0');
+
+        // check if the ID is acceptable and ends with a colon
+        if (id->len == 0) {
+            free(id);
+            throwError("Error when parsing left side. No empty IDs allowed");
+            exit(-1); // unnecessary
+        } else if (currChar != ':') {
+            free(id);
+            throwError("Error when parsing left side. Colon or alphanumerical value after NodeID expected");
+            exit(-1); // unnecessary
+        }
+
+        // add the id to node and add that to nodelist
+        createNewNode(node, id);
+        addNodeToNodeList(&nodelist, node);
+
+        return true;
     }
-
-    // create new node and add to nodelist
-    node = createNewNode(&id);
-    addToList(&nodelist, node);
-
-    return node;*/
 }
 /*
 NodeList parseRightSide(Node* leftSideNode) {
@@ -317,22 +300,34 @@ int scanContents() {
 
     return 0;
 }
-
-int init() {
-    initNodeList(&nodelist, 10);
-
-    return 0;
-}*/
+*/
+void init() {
+    createNewNodeList(&nodelist, 10);
+}
 
 int main() {
     /*
-    init();
     scanContents();*/
-    NodeID testID1;
-    Node testNode;
+    init();
 
-    createNewNodeList(&nodelist, 5);
-    parseLeftSide(&testNode, &testID1);
+    int i = 0;
+    bool stillNodesToBeParsed = true;
+    while (stillNodesToBeParsed) {
+
+        NodeID* currID = malloc(sizeof(NodeID));
+        Node* currNode = malloc(sizeof(Node));
+
+        stillNodesToBeParsed = parseLeftSide(currNode, currID);
+
+        if (stillNodesToBeParsed) {
+            printf("ID: %s\n\n", nodelist.nodes[i++]->id->value);
+
+            // skip till next newline (temporary)
+            while (getchar() != '\n') {}
+        } else {
+            // TODO: Parse starting node ID
+        }
+    }
 
     /*
     NodeID testID1;
