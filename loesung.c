@@ -3,7 +3,7 @@
 //#include <stdbool.h>
 //#include <string.h>
 
-typedef char* ID; // an ID is a string
+typedef char* ID;
 
 typedef struct {
     ID value;
@@ -68,16 +68,11 @@ void addCharToNodeID(NodeID* id, char c) {
         else id->value = temp;
     }
 
-    // check for disallowed char in ID
+    // add char to NodeID
     if (c == '\0') {
         id->value[id->len] = c;
         id->size = id->len;
-    }
-    else if ((c < 'a' || c > 'z') &&
-        (c < '0' || c > '9')) {
-        throwError("Only lowercase alphanumerical values allowed.");
-    }
-    else {
+    } else {
         id->value[id->len++] = c;
     }
 }
@@ -122,9 +117,28 @@ unsigned int parseValue() {
     if (getchar() != '\n') throwError("Error when parsing value. Linefeed after value expected");
 
     return value;
-}
+}*/
 
-Node parseLeftSide() {
+// gives a node its ID
+void parseLeftSide(Node* node, NodeID* id) {
+    char currChar;
+
+    createNewID(id, 10);
+
+    // add every allowed char to id
+    currChar = (char) getchar();
+    while ((currChar >= 'a' && currChar <= 'z') ||
+           (currChar >= '0' && currChar <= '9')) {
+
+        addCharToNodeID(id, currChar);
+
+        currChar = (char) getchar();
+    }
+    addCharToNodeID(id, '\0');
+
+    createNewNode(node, id);
+    addNodeToNodeList(&nodelist, node);
+    /*
     Node node;
     NodeID id;
     char currChar;
@@ -171,9 +185,9 @@ Node parseLeftSide() {
     node = createNewNode(&id);
     addToList(&nodelist, node);
 
-    return node;
+    return node;*/
 }
-
+/*
 NodeList parseRightSide(Node* leftSideNode) {
     NodeList list;
     NodeID id;
@@ -314,7 +328,13 @@ int main() {
     /*
     init();
     scanContents();*/
+    NodeID testID1;
+    Node testNode;
 
+    createNewNodeList(&nodelist, 5);
+    parseLeftSide(&testNode, &testID1);
+
+    /*
     NodeID testID1;
     NodeID testID2;
     Node testNode1;
@@ -335,7 +355,7 @@ int main() {
     createNewNodeList(&nodelist, 10);
     addNodeToNodeList(&nodelist, &testNode1);
     addNodeToNodeList(&nodelist, &testNode2);
-
+*/
     freeEverything();
     return 0;
 }
