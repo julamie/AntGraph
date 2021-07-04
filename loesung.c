@@ -35,6 +35,8 @@ void freeEverything() {
     // free all NodeID values
     for (unsigned int i = 0; i < nodelist.len; i++) {
         free(nodelist.nodes[i]->id->value);
+        free(nodelist.nodes[i]->id);
+        free(nodelist.nodes[i]);
     }
     // free the list of nodes
     free(nodelist.nodes);
@@ -154,10 +156,12 @@ bool parseLeftSide(Node* node, NodeID* id) {
 
         // check if the ID is acceptable and ends with a colon
         if (id->len == 0) {
+            free(id->value);
             free(id);
             throwError("Error when parsing left side. No empty IDs allowed");
             exit(-1); // unnecessary
         } else if (currChar != ':') {
+            free(id->value);
             free(id);
             throwError("Error when parsing left side. Colon or alphanumerical value after NodeID expected");
             exit(-1); // unnecessary
@@ -275,10 +279,36 @@ unsigned int parseNumSteps() {
 }
 
 // -------------------------------------------------------------
-
+*/
 // run each line of stdin
-int scanContents() {
-    bool finished = false;
+void scanContents() {
+    int i = 0;
+    bool stillNodesToBeParsed = true;
+    while (stillNodesToBeParsed) {
+
+        NodeID* currID = malloc(sizeof(NodeID));
+        Node* currNode = malloc(sizeof(Node));
+        if (currID == NULL || currNode == NULL) {
+            throwError("Error when allocating memory for currID or currNode");
+            exit(-1); // unnecessary
+        }
+
+        stillNodesToBeParsed = parseLeftSide(currNode, currID);
+
+        if (stillNodesToBeParsed) {
+            printf("ID: %s\n\n", nodelist.nodes[i++]->id->value);
+
+            // skip till next newline (temporary)
+            while (getchar() != '\n') {}
+        } else {
+            free(currID->value);
+            free(currID);
+            free(currNode);
+            // TODO: Parse starting node ID
+        }
+    }
+
+    /*bool finished = false;
     while (!finished) {
         Node currNode = parseLeftSide();
 
@@ -298,36 +328,16 @@ int scanContents() {
 
     }
 
-    return 0;
+    return 0;*/
 }
-*/
+
 void init() {
     createNewNodeList(&nodelist, 10);
 }
 
 int main() {
-    /*
-    scanContents();*/
     init();
-
-    int i = 0;
-    bool stillNodesToBeParsed = true;
-    while (stillNodesToBeParsed) {
-
-        NodeID* currID = malloc(sizeof(NodeID));
-        Node* currNode = malloc(sizeof(Node));
-
-        stillNodesToBeParsed = parseLeftSide(currNode, currID);
-
-        if (stillNodesToBeParsed) {
-            printf("ID: %s\n\n", nodelist.nodes[i++]->id->value);
-
-            // skip till next newline (temporary)
-            while (getchar() != '\n') {}
-        } else {
-            // TODO: Parse starting node ID
-        }
-    }
+    scanContents();
 
     /*
     NodeID testID1;
