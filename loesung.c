@@ -26,33 +26,45 @@ typedef struct {
 
 // -------------------------------------------------------------
 
+// TODO: Maybe new function for check if realloc fails
 NodeList nodelist;
+NodeID *startingNodeID;
+unsigned int numOfSteps;
 
 // -------------------------------------------------------------
 
+// frees everything from a node
+void freeNode(Node *node) {
+    free(node->id->value);
+    free(node->id);
+    free(node);
+}
+
 // frees all allocated memory
 void freeEverything() {
+    free(startingNodeID->value);
+    free(startingNodeID);
+
     // free all NodeID values
     for (unsigned int i = 0; i < nodelist.len; i++) {
-        free(nodelist.nodes[i]->id->value);
-        free(nodelist.nodes[i]->id);
-        free(nodelist.nodes[i]);
+        freeNode(nodelist.nodes[i]);
     }
     // free the list of nodes
     free(nodelist.nodes);
 }
 
+// TODO: freeEverything will be a problem
 // prints an error message and aborts the program
-void throwError(char* msg) {
+void throwError(char *msg) {
     fprintf(stderr, "%s\n", msg);
     freeEverything();
-    exit(-1);
+    exit(EXIT_FAILURE);
 }
 
 // -------------------------------------------------------------
 
 // allocates memory for a new NodeID
-void createNewID(NodeID* nodeID, unsigned int size) {
+void createNewID(NodeID *nodeID, unsigned int size) {
     nodeID->value = malloc(sizeof(char) * size);
     if (nodeID->value == NULL) throwError("Error allocating memory for new NodeID");
 
@@ -61,7 +73,7 @@ void createNewID(NodeID* nodeID, unsigned int size) {
 }
 
 // adds a char to a NodeID and keeps enough space
-void addCharToNodeID(NodeID* id, char c) {
+void addCharToNodeID(NodeID *id, char c) {
     if (id->len == id->size) {
         id->size *= 2;
 
@@ -84,7 +96,7 @@ void addCharToNodeID(NodeID* id, char c) {
 }
 
 // creates a new node with a pointer to an ID
-void createNewNode(Node* node, NodeID *id) {
+void createNewNode(Node *node, NodeID *id) {
     node->id = id;
     node->value = 0;
     node->neighbours = NULL;
@@ -129,7 +141,7 @@ unsigned int parseValue() {
 }*/
 
 // gives a node its ID, returns whether there are more left sides to be parsed
-bool parseLeftSide(Node* node, NodeID* id) {
+bool parseLeftSide(Node *node, NodeID *id) {
     char currChar;
 
     createNewID(id, 10);
@@ -229,41 +241,30 @@ NodeList parseRightSide(Node* leftSideNode) {
 
     return nodelist;
 }
-
-NodeID parseStartingNodeID() {
-    char* startingNodeID;
+*/
+void parseStartingNodeID() {
     char currChar;
-    unsigned int size = 10;
-    unsigned int len = 0;
 
-    // make space for startingNodeID
-    startingNodeID = createNewID(size);
+    // make space for id
+    createNewID(startingNodeID, 10);
 
-    // add every allowed char to startingNodeID
-    currChar = getchar();
+    // add every allowed char to id
+    currChar = (char) getchar();
     while ((currChar >= 'a' && currChar <= 'z') ||
            (currChar >= '0' && currChar <= '9')) {
 
-        addCharToNodeID(startingNodeID, currChar, size, len++);
-        if (len == size) size = size * 2;
+        addCharToNodeID(startingNodeID, currChar);
 
-        currChar = getchar();
+        currChar = (char) getchar();
     }
-
-    // end the string and clip it behind the '\0'
-    startingNodeID[len++] = '\0';
-    NodeID temp = realloc(startingNodeID, sizeof(*startingNodeID) * len);
-    if (temp == NULL) throwError("Error when removing unnecessary space from startingNodeID");
-    else startingNodeID = temp;
+    addCharToNodeID(startingNodeID, '\0');
 
     // only a newline is allowed after id
     if (currChar != '\n') {
         throwError("Error after parsing starting node id. Alphanumerical char or linefeed expected");
     }
-
-    return startingNodeID;
 }
-
+/*
 unsigned int parseNumSteps() {
     // handle errors
     if(getchar() != 'I') throwError("Error when parsing number of steps. 'I' expected");
@@ -286,8 +287,8 @@ void scanContents() {
     bool stillNodesToBeParsed = true;
     while (stillNodesToBeParsed) {
 
-        NodeID* currID = malloc(sizeof(NodeID));
-        Node* currNode = malloc(sizeof(Node));
+        NodeID *currID = malloc(sizeof(NodeID));
+        Node *currNode = malloc(sizeof(Node));
         if (currID == NULL || currNode == NULL) {
             throwError("Error when allocating memory for currID or currNode");
             exit(-1); // unnecessary
@@ -304,9 +305,13 @@ void scanContents() {
             free(currID->value);
             free(currID);
             free(currNode);
-            // TODO: Parse starting node ID
         }
     }
+
+    // parse the ID of the starting node and the number of steps
+    parseStartingNodeID();
+    printf("StartingNode: %s\n", startingNodeID->value);
+    //parseNumSteps();
 
     /*bool finished = false;
     while (!finished) {
@@ -314,12 +319,12 @@ void scanContents() {
 
         // parse NodeID of starting node
         if (strcmp(*currNode.id, "A") == 0) {
-            NodeID startingNodeID = parseStartingNodeID();
-            printf("Starting NodeID: %s\n", startingNodeID);
+            NodeID startNodeID = parseStartingNodeID();
+            printf("Starting NodeID: %s\n", startNodeID);
             unsigned int numSteps = parseNumSteps();
             printf("Number of steps: %u\n", numSteps);
 
-            //free(startingNodeID);
+            //free(startNodeID);
             finished = true;
         } else {
             printf("ID: %s\n", *currNode.id);
@@ -332,6 +337,11 @@ void scanContents() {
 }
 
 void init() {
+    startingNodeID = malloc(sizeof(NodeID));
+    if (startingNodeID == NULL) {
+        fprintf(stderr, "Couldn't allocate memory for startingNodeID\n");
+        exit(EXIT_FAILURE);
+    }
     createNewNodeList(&nodelist, 10);
 }
 
