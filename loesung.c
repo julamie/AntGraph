@@ -33,31 +33,33 @@ unsigned int numOfSteps;
 
 // -------------------------------------------------------------
 
-// frees everything from a node
+void freeNodeID(NodeID *id) {
+    free(id->value);
+    free(id);
+}
+
 void freeNode(Node *node) {
-    free(node->id->value);
-    free(node->id);
+    freeNodeID(node->id);
     free(node);
+}
+
+void freeNodeList(NodeList *list) {
+    for (unsigned int i = 0; i < list->len; i++) {
+        freeNode(list->nodes[i]);
+    }
+    free(list->nodes);
 }
 
 // frees all allocated memory
 void freeEverything() {
-    free(startingNodeID->value);
-    free(startingNodeID);
-
-    // free all NodeID values
-    for (unsigned int i = 0; i < nodelist.len; i++) {
-        freeNode(nodelist.nodes[i]);
-    }
-    // free the list of nodes
-    free(nodelist.nodes);
+    freeNodeID(startingNodeID);
+    freeNodeList(&nodelist);
 }
 
-// TODO: freeEverything will be a problem
+// TODO: Take care of memory leaks
 // prints an error message and aborts the program
 void throwError(char *msg) {
     fprintf(stderr, "%s\n", msg);
-    freeEverything();
     exit(EXIT_FAILURE);
 }
 
@@ -79,7 +81,7 @@ void addCharToNodeID(NodeID *id, char c) {
 
         ID temp = realloc(id->value, sizeof(char) * id->size);
         if (temp == NULL) {
-            free(id);
+            freeEverything();
             throwError("Error when allocating more memory for NodeID");
             exit(-1); // unnecessary
         }
@@ -119,7 +121,8 @@ void addNodeToNodeList(NodeList *list, Node *node) {
 
         Node** temp = realloc(list->nodes, sizeof(**list->nodes) * list->size);
         if (temp == NULL) {
-            free(node);
+            freeNode(node);
+            freeEverything();
             throwError("Error when increasing size of list");
         }
         else list->nodes = temp;
@@ -151,7 +154,11 @@ bool parseLeftSide(Node *node, NodeID *id) {
 
     // check if the list of new nodes is finished
     if (currChar == 'A') {
-        if (getchar() != ':') throwError("Error when parsing starting node. Colon after 'A' expected");
+        if (getchar() != ':') {
+            freeNodeID(id);
+            free(node); // cant use freeNode, cause id is not allocated
+            throwError("Error when parsing starting node. Colon after 'A' expected");
+        }
 
         return false;
     }
@@ -168,13 +175,15 @@ bool parseLeftSide(Node *node, NodeID *id) {
 
         // check if the ID is acceptable and ends with a colon
         if (id->len == 0) {
-            free(id->value);
-            free(id);
-            throwError("Error when parsing left side. No empty IDs allowed");
+            freeNodeID(id);
+            freeNode(node);
+            freeEverything();
+            throwError("Error when parsing left side. Invalid ID");
             exit(-1); // unnecessary
         } else if (currChar != ':') {
-            free(id->value);
-            free(id);
+            freeNodeID(id);
+            freeNode(node);
+            freeEverything();
             throwError("Error when parsing left side. Colon or alphanumerical value after NodeID expected");
             exit(-1); // unnecessary
         }
@@ -261,6 +270,8 @@ void parseStartingNodeID() {
 
     // only a newline is allowed after id
     if (currChar != '\n') {
+        freeNodeID(startingNodeID);
+        freeEverything();
         throwError("Error after parsing starting node id. Alphanumerical char or linefeed expected");
     }
 }
@@ -290,6 +301,8 @@ void scanContents() {
         NodeID *currID = malloc(sizeof(NodeID));
         Node *currNode = malloc(sizeof(Node));
         if (currID == NULL || currNode == NULL) {
+            if (currID != NULL) freeNodeID(currID);
+            else if (currNode != NULL) freeNode(currNode);
             throwError("Error when allocating memory for currID or currNode");
             exit(-1); // unnecessary
         }
@@ -339,38 +352,16 @@ void scanContents() {
 void init() {
     startingNodeID = malloc(sizeof(NodeID));
     if (startingNodeID == NULL) {
-        fprintf(stderr, "Couldn't allocate memory for startingNodeID\n");
-        exit(EXIT_FAILURE);
+        throwError("Couldn't allocate memory for startingNodeID");
     }
+
     createNewNodeList(&nodelist, 10);
 }
 
 int main() {
     init();
     scanContents();
-
-    /*
-    NodeID testID1;
-    NodeID testID2;
-    Node testNode1;
-    Node testNode2;
-    createNewID(&testID1, 10);
-    createNewID(&testID2, 10);
-
-    char c = 0x61;
-    for (int i = 0; i < 1000; i++) {
-        addCharToNodeID(&testID1, (char) (c + i % 26));
-        addCharToNodeID(&testID2, (char) (c + (i*2) % 26));
-    }
-    addCharToNodeID(&testID1, '\0');
-    addCharToNodeID(&testID2, '\0');
-    createNewNode(&testNode1, &testID1);
-    createNewNode(&testNode2, &testID2);
-
-    createNewNodeList(&nodelist, 10);
-    addNodeToNodeList(&nodelist, &testNode1);
-    addNodeToNodeList(&nodelist, &testNode2);
-*/
     freeEverything();
+
     return 0;
 }
