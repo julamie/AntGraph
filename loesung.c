@@ -27,7 +27,7 @@ typedef struct {
 // -------------------------------------------------------------
 
 //unsigned int runs = 0;
-NodeList nodelist;
+NodeList *nodelist;
 NodeID *startingNodeID;
 unsigned int numOfSteps;
 
@@ -48,12 +48,13 @@ void freeNodeList(NodeList *list) {
         freeNode(list->nodes[i]);
     }
     free(list->nodes);
+    free(list);
 }
 
 // frees all allocated memory
 void freeEverything() {
     freeNodeID(startingNodeID);
-    freeNodeList(&nodelist);
+    freeNodeList(nodelist);
 }
 
 // prints an error message and aborts the program
@@ -122,36 +123,35 @@ void addIDToNode(Node *node, NodeID *id) {
 }
 
 // creates a new NodeList with specified size
-void createNewNodeList(NodeList *list, unsigned int size) {
-    list->size = size;
+NodeList* createNewNodeList() {
+    NodeList *list = malloc(sizeof(NodeList));
+    if (list == NULL) return NULL;
+
+    list->size = 5;
     list->len = 0;
 
-    list->nodes = malloc(sizeof(**list->nodes) * list->size);
+    list->nodes = malloc(sizeof(Node) * list->size);
     if (list->nodes == NULL) {
-        // free correctly if the global nodelist is used as argument
-        if (list == &nodelist) {
-            freeNodeID(startingNodeID);
-        }
-
-        throwError("Error when allocating memory for new NodeList");
+        free(list);
+        return NULL;
     }
+
+    return list;
 }
 
 // adds a pointer to a node to a nodeList
-void addNodeToNodeList(NodeList *list, Node *node) {
+bool addNodeToNodeList(NodeList *list, Node *node) {
     if (list->len == list->size) {
         list->size *= 2;
 
         Node** temp = realloc(list->nodes, sizeof(**list->nodes) * list->size);
-        if (temp == NULL) {
-            freeNode(node);
-            freeEverything();
-            throwError("Error when increasing size of list");
-        }
+        if (temp == NULL) return false;
         else list->nodes = temp;
     }
 
     list->nodes[list->len++] = node;
+
+    return true;
 }
 
 // -------------------------------------------------------------
@@ -258,13 +258,17 @@ bool parseLeftSide() {
 
         // add the id to node and add that to nodelist
         addIDToNode(node, id);
-        addNodeToNodeList(&nodelist, node);
+        if(!addNodeToNodeList(nodelist, node)) {
+            free(node);
+            freeEverything();
+            throwError("Couldn't add node to nodelist");
+        }
 
         return true;
     }
 }
 /*
-NodeList parseRightSide(Node* leftSideNode) {
+void parseRightSide(Node *leftSideNode) {
     NodeList list;
     NodeID id;
     char currChar;
@@ -375,7 +379,7 @@ void scanContents() {
     while (stillNodesToBeParsed) {
         stillNodesToBeParsed = parseLeftSide();
         if (stillNodesToBeParsed) {
-            printf("ID: %s\n\n", nodelist.nodes[i++]->id->value);
+            printf("ID: %s\n\n", nodelist->nodes[i++]->id->value);
 
             // skip till next newline (temporary)
             while (getchar() != '\n') {}
@@ -414,7 +418,11 @@ void init() {
     startingNodeID = createNewID();
     if (startingNodeID == NULL) throwError("Couldn't allocate memory for startingNodeID");
 
-    createNewNodeList(&nodelist, 10);
+    nodelist = createNewNodeList();
+    if (nodelist == NULL) {
+        freeNodeID(startingNodeID);
+        throwError("Couldn't allocate memory for nodelist");
+    }
 }
 
 int main() {
