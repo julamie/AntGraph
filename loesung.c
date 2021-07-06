@@ -26,7 +26,6 @@ typedef struct {
 
 // -------------------------------------------------------------
 
-// TODO: Maybe new function for check if realloc fails
 NodeList nodelist;
 NodeID *startingNodeID;
 unsigned int numOfSteps;
@@ -56,7 +55,6 @@ void freeEverything() {
     freeNodeList(&nodelist);
 }
 
-// TODO: Take care of memory leaks
 // prints an error message and aborts the program
 void throwError(char *msg) {
     fprintf(stderr, "%s\n", msg);
@@ -105,6 +103,7 @@ void createNewNode(Node *node, NodeID *id) {
     node->numNeighbours = 0;
 }
 
+// TODO: Take care of memory leaks
 // creates a new NodeList with specified size
 void createNewNodeList(NodeList *list, unsigned int size) {
     list->size = size;
@@ -132,16 +131,31 @@ void addNodeToNodeList(NodeList *list, Node *node) {
 }
 
 // -------------------------------------------------------------
-/*
+
+// TODO: Values longer than valueStr could be problematic
 // reads an unsigned int from stdin and returns it
 unsigned int parseValue() {
-    unsigned int value = 5;
+    char valueStr[11];
+    unsigned long int value;
 
-    if(scanf("%u", &value) != 1) throwError("Error when parsing value. Unsigned int expected");
-    if (getchar() != '\n') throwError("Error when parsing value. Linefeed after value expected");
+    if(scanf("%[0-9]", valueStr) != 1) {
+        freeEverything();
+        throwError("Error when parsing value. Unsigned int expected");
+    }
+    if (getchar() != '\n') {
+        freeEverything();
+        throwError("Error when parsing value. Linefeed after value expected");
+    }
 
-    return value;
-}*/
+    value = strtol(valueStr, NULL, 10);
+
+    // value has to be in bounds
+    if (value > 4294967296 - 1) {
+        freeEverything();
+        throwError("Number of steps has to be between 0 and 2^32-1");
+    }
+    return (unsigned int) value;
+}
 
 // gives a node its ID, returns whether there are more left sides to be parsed
 bool parseLeftSide(Node *node, NodeID *id) {
@@ -158,7 +172,12 @@ bool parseLeftSide(Node *node, NodeID *id) {
             freeNodeID(id);
             free(node); // cant use freeNode, cause id is not allocated
             throwError("Error when parsing starting node. Colon after 'A' expected");
+            exit(-1); // unnecessary
         }
+
+        // free them cause there are not needed
+        freeNodeID(id);
+        free(node);
 
         return false;
     }
@@ -270,7 +289,6 @@ void parseStartingNodeID() {
 
     // only a newline is allowed after id
     if (currChar != '\n') {
-        freeNodeID(startingNodeID);
         freeEverything();
         throwError("Error after parsing starting node id. Alphanumerical char or linefeed expected");
     }
@@ -308,16 +326,11 @@ void scanContents() {
         }
 
         stillNodesToBeParsed = parseLeftSide(currNode, currID);
-
         if (stillNodesToBeParsed) {
             printf("ID: %s\n\n", nodelist.nodes[i++]->id->value);
 
             // skip till next newline (temporary)
             while (getchar() != '\n') {}
-        } else {
-            free(currID->value);
-            free(currID);
-            free(currNode);
         }
     }
 
@@ -325,7 +338,9 @@ void scanContents() {
     parseStartingNodeID();
     printf("StartingNode: %s\n", startingNodeID->value);
     //parseNumSteps();
-
+    getchar(); getchar();
+    unsigned long int g = parseValue();
+    printf("%lu\n", g);
     /*bool finished = false;
     while (!finished) {
         Node currNode = parseLeftSide();
