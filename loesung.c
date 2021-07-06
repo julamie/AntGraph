@@ -26,7 +26,7 @@ typedef struct {
 
 // -------------------------------------------------------------
 
-unsigned int runs = 0;
+//unsigned int runs = 0;
 NodeList nodelist;
 NodeID *startingNodeID;
 unsigned int numOfSteps;
@@ -128,10 +128,11 @@ void createNewNodeList(NodeList *list, unsigned int size) {
 
     list->nodes = malloc(sizeof(**list->nodes) * list->size);
     if (list->nodes == NULL) {
-        // free correct if the global nodelist is used as argument
+        // free correctly if the global nodelist is used as argument
         if (list == &nodelist) {
             freeNodeID(startingNodeID);
         }
+
         throwError("Error when allocating memory for new NodeList");
     }
 }
@@ -160,7 +161,7 @@ unsigned int parseValue() {
     char valueStr[11];
     unsigned long int value;
 
-    //
+    // parse number as a string
     if(scanf("%11[0-9]", valueStr) != 1) {
         freeEverything();
         throwError("Error when parsing value. Unsigned int expected");
@@ -169,6 +170,8 @@ unsigned int parseValue() {
         freeEverything();
         throwError("Error when parsing value. Too long ID (0 <= ID <= 2^32-1) or no Linefeed after ID");
     }
+
+    // convert it to a long unsigned int
     value = strtol(valueStr, NULL, 10);
 
     // value has to be in bounds
@@ -316,6 +319,7 @@ NodeList parseRightSide(Node* leftSideNode) {
     return nodelist;
 }
 */
+
 void parseStartingNodeID() {
     char currChar;
 
@@ -342,23 +346,28 @@ void parseStartingNodeID() {
         throwError("Error after parsing starting node id. Alphanumerical char or linefeed expected");
     }
 }
-/*
-unsigned int parseNumSteps() {
+
+void parseNumSteps() {
     // handle errors
-    if(getchar() != 'I') throwError("Error when parsing number of steps. 'I' expected");
-    if (getchar() != ':') throwError("Error when parsing number of steps. ':' after 'I' expected");
-
-    unsigned int numberSteps = parseValue();
-
-    if (getchar() != EOF) {
-        throwError("Error when parsing number of steps. End of file expected");
+    if(getchar() != 'I') {
+        freeEverything();
+        throwError("Error when parsing number of steps. 'I' expected");
+    }
+    if (getchar() != ':') {
+        freeEverything();
+        throwError("Error when parsing number of steps. ':' after 'I' expected");
     }
 
-    return numberSteps;
+    numOfSteps = parseValue();
+
+    if (getchar() != EOF) {
+        freeEverything();
+        throwError("Error when parsing number of steps. End of file expected");
+    }
 }
 
 // -------------------------------------------------------------
-*/
+
 // run each line of stdin
 void scanContents() {
     int i = 0;
@@ -376,10 +385,8 @@ void scanContents() {
     // parse the ID of the starting node and the number of steps
     parseStartingNodeID();
     printf("StartingNode: %s\n", startingNodeID->value);
-    //parseNumSteps();
-    getchar(); getchar();
-    unsigned long int g = parseValue();
-    printf("%lu\n", g);
+    parseNumSteps();
+    printf("Number of steps: %u\n", numOfSteps);
     /*bool finished = false;
     while (!finished) {
         Node currNode = parseLeftSide();
