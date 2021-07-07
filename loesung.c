@@ -30,7 +30,6 @@ typedef struct {
 
 // -------------------------------------------------------------
 
-// TODO: Merge freeEverything and throwError?
 // TODO: Compress frees by adding earlier?
 //unsigned int runs = 0;
 NodeList *nodelist;
@@ -78,6 +77,7 @@ void freeEverything() {
 // prints an error message and aborts the program
 void throwError(char *msg) {
     fprintf(stderr, "%s\n", msg);
+    freeEverything();
     exit(EXIT_FAILURE);
 }
 
@@ -209,23 +209,15 @@ unsigned int parseValue() {
     unsigned long int value;
 
     // parse number as a string
-    if(scanf("%11[0-9]", valueStr) != 1) {
-        freeEverything();
-        throwError("Error when parsing value. Unsigned int expected");
-    }
-    if (getchar() != '\n') {
-        freeEverything();
-        throwError("Error when parsing value. Too long ID (0 <= ID <= 2^32-1) or no Linefeed after ID");
-    }
+    if(scanf("%11[0-9]", valueStr) != 1) throwError("Error when parsing value. Unsigned int expected");
+
+    if (getchar() != '\n') throwError("Error when parsing value. Too long ID (0 <= ID <= 2^32-1) or no Linefeed after ID");
 
     // convert it to a long unsigned int
     value = strtol(valueStr, NULL, 10);
 
     // value has to be in bounds
-    if (value > 4294967296 - 1) {
-        freeEverything();
-        throwError("Number of steps has to be between 0 and 2^32-1");
-    }
+    if (value > 4294967296 - 1) throwError("Number of steps has to be between 0 and 2^32-1");
 
     return (unsigned int) value;
 }
@@ -235,17 +227,12 @@ bool parseLeftSide() {
     char currChar;
 
     NodeID *id = createNewID();
-    if (id == NULL) {
-        freeEverything();
-        throwError("Error allocating memory for new NodeID");
-    }
+    if (id == NULL) throwError("Error allocating memory for new NodeID");
 
     Node *node = createNewNode();
     if (node == NULL) {
         freeNodeID(id);
-        freeEverything();
         throwError("Error when allocating memory for id or node");
-        exit(-1); // unnecessary
     }
 
     // add every allowed char to id
@@ -273,7 +260,6 @@ bool parseLeftSide() {
             if(!addCharToNodeID(id, currChar)) {
                 freeNodeID(id);
                 free(node);
-                freeEverything();
                 throwError("Couldn't allocate memory for more letters in NodeID");
             }
 
@@ -282,7 +268,6 @@ bool parseLeftSide() {
         if (!addCharToNodeID(id, '\0')) {
             freeNodeID(id);
             free(node);
-            freeEverything();
             throwError("Couldn't allocate memory for string terminator in NodeID");
         }
 
@@ -290,12 +275,10 @@ bool parseLeftSide() {
         if (id->len == 0) {
             freeNodeID(id);
             free(node);
-            freeEverything();
             throwError("Error when parsing left side. Invalid ID");
         } else if (currChar != ':') {
             freeNodeID(id);
             free(node);
-            freeEverything();
             throwError("Error when parsing left side. Colon or alphanumerical value after NodeID expected");
         }
 
@@ -303,7 +286,6 @@ bool parseLeftSide() {
         addIDToNode(node, id);
         if(!addNodeToNodeList(nodelist, node)) {
             free(node);
-            freeEverything();
             throwError("Couldn't add node to nodelist");
         }
 
@@ -328,7 +310,6 @@ void parseRightSide(Node *leftSideNode) {
             if (!addCharToNodeID(id, currChar)) {
                 freeNodeID(id);
                 freeNodeIDList(IDList);
-                freeEverything();
                 throwError("Couldn't allocate memory for more letters in neighbour NodeID");
             }
 
@@ -337,21 +318,18 @@ void parseRightSide(Node *leftSideNode) {
         if (!addCharToNodeID(id, '\0')) {
             freeNodeID(id);
             freeNodeIDList(IDList);
-            freeEverything();
             throwError("Couldn't allocate memory for string terminator in neighbour NodeID");
         }
 
-        // check if id is valid
-        if (id->len == 0) {
+        // check if id is valid, empty right side with value redefinition is allowed
+        if (id->len == 0 && !(IDList->len == 0 && currChar == '-')) {
             freeNodeID(id);
             freeNodeIDList(IDList);
-            freeEverything();
             throwError("Error while parsing right side. Invalid ID");
         }
 
         if (!addIDToIDList(IDList, id)) {
             freeNodeIDList(IDList);
-            freeEverything();
             throwError("Couldn't add node to neighbour nodeList");
         }
     } while (currChar == ',');
@@ -361,11 +339,9 @@ void parseRightSide(Node *leftSideNode) {
     // disallow empty lists without change of value
     else if (IDList->len == 0) {
         freeNodeIDList(IDList);
-        freeEverything();
         throwError("Right side has to have at least one node or a different starting value");
     } else if (currChar != '\n') {
         freeNodeIDList(IDList);
-        freeEverything();
         throwError("Error when parsing right side. Comma, dash or linefeed expected");
     }
 
@@ -381,42 +357,25 @@ void parseStartingNodeID() {
     while ((currChar >= 'a' && currChar <= 'z') ||
            (currChar >= '0' && currChar <= '9')) {
 
-        if(!addCharToNodeID(startingNodeID, currChar)) {
-            freeEverything();
-            throwError("Couldn't add a letter to startingNodeID");
-        }
+        if(!addCharToNodeID(startingNodeID, currChar)) throwError("Couldn't add a letter to startingNodeID");
 
         currChar = (char) getchar();
     }
-    if(!addCharToNodeID(startingNodeID, '\0')) {
-        freeEverything();
-        throwError("Couldn't add a letter to startingNodeID");
-    }
+    if(!addCharToNodeID(startingNodeID, '\0')) throwError("Couldn't add a letter to startingNodeID");
 
     // only a newline is allowed after id
-    if (currChar != '\n') {
-        freeEverything();
-        throwError("Error after parsing starting node id. Alphanumerical char or linefeed expected");
-    }
+    if (currChar != '\n') throwError("Error after parsing starting node id. Alphanumerical char or linefeed expected");
+
 }
 
 void parseNumSteps() {
     // handle errors
-    if(getchar() != 'I') {
-        freeEverything();
-        throwError("Error when parsing number of steps. 'I' expected");
-    }
-    if (getchar() != ':') {
-        freeEverything();
-        throwError("Error when parsing number of steps. ':' after 'I' expected");
-    }
+    if(getchar() != 'I') throwError("Error when parsing number of steps. 'I' expected");
+    if (getchar() != ':') throwError("Error when parsing number of steps. ':' after 'I' expected");
 
     numOfSteps = parseValue();
 
-    if (getchar() != EOF) {
-        freeEverything();
-        throwError("Error when parsing number of steps. End of file expected");
-    }
+    if (getchar() != EOF) throwError("Error when parsing number of steps. End of file expected");
 }
 
 // -------------------------------------------------------------
@@ -428,11 +387,16 @@ void scanContents() {
     while (stillNodesToBeParsed) {
         stillNodesToBeParsed = parseLeftSide();
         if (stillNodesToBeParsed) {
-            printf("ID: %s\n\n", nodelist->nodes[i++]->id->value);
+            printf("ID: %s\n", nodelist->nodes[i++]->id->value);
 
             // add neighbourIDs of recently added Node
             Node *currNode = nodelist->nodes[(nodelist->len)-1];
             parseRightSide(currNode);
+            printf("Neighbours: ");
+            for (unsigned int k = 0; k < currNode->neighbourIDs->len; k++) {
+                printf("%s, ", currNode->neighbourIDs->IDs[k]->value);
+            }
+            printf("\n");
         }
     }
 
@@ -441,37 +405,20 @@ void scanContents() {
     printf("StartingNode: %s\n", startingNodeID->value);
     parseNumSteps();
     printf("Number of steps: %u\n", numOfSteps);
-    /*bool finished = false;
-    while (!finished) {
-        Node currNode = parseLeftSide();
-
-        // parse NodeID of starting node
-        if (strcmp(*currNode.id, "A") == 0) {
-            NodeID startNodeID = parseStartingNodeID();
-            printf("Starting NodeID: %s\n", startNodeID);
-            unsigned int numSteps = parseNumSteps();
-            printf("Number of steps: %u\n", numSteps);
-
-            //free(startNodeID);
-            finished = true;
-        } else {
-            printf("ID: %s\n", *currNode.id);
-            parseRightSide(&currNode);
-        }
-
-    }
-
-    return 0;*/
 }
 
 void init() {
     startingNodeID = createNewID();
-    if (startingNodeID == NULL) throwError("Couldn't allocate memory for startingNodeID");
+    if (startingNodeID == NULL) {
+        fprintf(stderr, "Couldn't allocate memory for startingNodeID\n");
+        exit(EXIT_FAILURE);
+    }
 
     nodelist = createNewNodeList();
     if (nodelist == NULL) {
         freeNodeID(startingNodeID);
-        throwError("Couldn't allocate memory for nodelist");
+        fprintf(stderr, "Couldn't allocate memory for nodelist\n");
+        exit(EXIT_FAILURE);
     }
 }
 
