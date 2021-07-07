@@ -1,9 +1,10 @@
 #!/bin/bash
 
-if [ "$1" == run ]; then
-  gcc -o loesung -O3 -std=c11 -Wall -Werror -Wextra -Wpedantic -DNDEBUG loesung.c
-  ./loesung
+if [ "$1" == test ]; then
+  for f in example_testcases/*.stdin;
+  do
+    ls "$f"; ./loesung < "$f" ; echo;
+  done
 else
-  echo run the program: run
-  echo check for memory leaks: valgrind \(coming\)
+  echo use test for testing through all testfiles
 fi
