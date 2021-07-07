@@ -31,7 +31,6 @@ typedef struct {
 
 // -------------------------------------------------------------
 
-// TODO: Compress frees by adding earlier?
 NodeList *nodelist;
 NodeID *startingNodeID;
 unsigned int numOfSteps;
@@ -122,6 +121,14 @@ bool addCharToNodeID(NodeID *id, char c) {
     return true;
 }
 
+// helper function for qsort
+int compareIDs(const void *lp, const void *rp) {
+    Node *leftNode = (Node*) lp;
+    Node *rightNode = (Node*) rp;
+
+    return strcmp(leftNode->id->value, rightNode->id->value);
+}
+
 NodeIDList* createNewIDList() {
     NodeIDList *list = malloc(sizeof(NodeIDList));
     if (list == NULL) return NULL;
@@ -198,6 +205,17 @@ bool addNodeToNodeList(NodeList *list, Node *node) {
     list->nodes[list->len++] = node;
 
     return true;
+}
+
+// sorts a nodelist
+void sortNodeList(NodeList *list) {
+    qsort(list->nodes, list->len, sizeof(Node), compareIDs);
+}
+
+void printNodeList(NodeList *list) {
+    for (unsigned int i = 0; i < list->len; i++) {
+        printf("ID %u: %s\n", i + 1, list->nodes[i]->id->value);
+    }
 }
 
 // -------------------------------------------------------------
@@ -386,11 +404,11 @@ void scanContents() {
             // add neighbourIDs of recently added Node
             Node *currNode = nodelist->nodes[(nodelist->len)-1];
             parseRightSide(currNode);
-            printf("Neighbours: ");
+            //printf("Neighbours: ");
             for (unsigned int k = 0; k < currNode->neighbourIDs->len; k++) {
-                printf("%s, ", currNode->neighbourIDs->IDs[k]->value);
+                //printf("%s, ", currNode->neighbourIDs->IDs[k]->value);
             }
-            printf("\n");
+            //printf("\n");
         }
     }
 
@@ -419,6 +437,9 @@ void init() {
 int main() {
     init();
     scanContents();
+    printNodeList(nodelist);
+    //sortNodeList(nodelist);
+    //printNodeList(nodelist);
     freeEverything();
 
     return 0;
