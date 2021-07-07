@@ -1,9 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
-//#include <string.h>
 
-typedef struct NodeList NodeList;
 typedef char* ID;
 
 typedef struct {
@@ -13,16 +11,22 @@ typedef struct {
 } NodeID;
 
 typedef struct {
+    NodeID** IDs;
+    unsigned int len;
+    unsigned int size;
+} NodeIDList;
+
+typedef struct {
     NodeID *id;
-    NodeList *neighbours;
+    NodeIDList *neighbourIDs;
     unsigned int value;
 } Node;
 
-struct NodeList {
+typedef struct {
     Node** nodes;
-    unsigned int size;
     unsigned int len;
-};
+    unsigned int size;
+}NodeList;
 
 // -------------------------------------------------------------
 
@@ -40,9 +44,20 @@ void freeNodeID(NodeID *id) {
     free(id);
 }
 
+void freeNodeIDList(NodeIDList *IDList) {
+    for (unsigned int i = 0; i < IDList->len; i++) {
+        //printf("Freeing Index %d: %s\n", 0, IDList->IDs[0]->value);
+        freeNodeID(IDList->IDs[i]);
+    }
+    free(IDList->IDs);
+    free(IDList);
+}
+
 void freeNode(Node *node) {
     freeNodeID(node->id);
-    if (node->neighbours != NULL) // TODO: Free NodeList properly
+    if (node->neighbourIDs != NULL) {
+        freeNodeIDList(node->neighbourIDs);
+    }
     free(node);
 }
 
@@ -108,6 +123,36 @@ bool addCharToNodeID(NodeID *id, char c) {
     return true;
 }
 
+NodeIDList* createNewIDList() {
+    NodeIDList *list = malloc(sizeof(NodeIDList));
+    if (list == NULL) return NULL;
+
+    list->size = 5;
+    list->len = 0;
+
+    list->IDs = malloc(sizeof(NodeID) * list->size);
+    if (list->IDs == NULL) {
+        free(list);
+        return NULL;
+    }
+
+    return list;
+}
+
+bool addIDToIDList(NodeIDList *list, NodeID *id) {
+    if (list->len == list->size) {
+        list->size *= 2;
+
+        NodeID **temp = realloc(list->IDs, sizeof(NodeID) * list->size);
+        if (temp == NULL) return false;
+        else list->IDs = temp;
+    }
+
+    list->IDs[list->len++] = id;
+
+    return true;
+}
+
 // creates a new node with a pointer to an ID
 Node* createNewNode() {
     Node *node = malloc(sizeof(Node));
@@ -115,7 +160,7 @@ Node* createNewNode() {
 
     node->id = NULL;
     node->value = 0;
-    node->neighbours = NULL;
+    node->neighbourIDs = NULL;
 
     return node;
 }
@@ -146,7 +191,7 @@ bool addNodeToNodeList(NodeList *list, Node *node) {
     if (list->len == list->size) {
         list->size *= 2;
 
-        Node** temp = realloc(list->nodes, sizeof(**list->nodes) * list->size);
+        Node **temp = realloc(list->nodes, sizeof(Node) * list->size);
         if (temp == NULL) return false;
         else list->nodes = temp;
     }
@@ -267,13 +312,14 @@ bool parseLeftSide() {
 }
 
 void parseRightSide(Node *leftSideNode) {
-    NodeID *id = createNewID();
-    Node *node = createNewNode();
-    NodeList *list = createNewNodeList();
+    NodeID *id;
+    NodeIDList *IDList = createNewIDList();
     char currChar;
 
     // parse every id while there is a comma after it
     do {
+        id = createNewID();
+
         // add every allowed char to id
         currChar = (char) getchar();
         while ((currChar >= 'a' && currChar <= 'z') ||
@@ -281,8 +327,7 @@ void parseRightSide(Node *leftSideNode) {
 
             if (!addCharToNodeID(id, currChar)) {
                 freeNodeID(id);
-                freeNode(node);
-                freeNodeList(list);
+                freeNodeIDList(IDList);
                 freeEverything();
                 throwError("Couldn't allocate memory for more letters in neighbour NodeID");
             }
@@ -291,8 +336,7 @@ void parseRightSide(Node *leftSideNode) {
         }
         if (!addCharToNodeID(id, '\0')) {
             freeNodeID(id);
-            freeNode(node);
-            freeNodeList(list);
+            freeNodeIDList(IDList);
             freeEverything();
             throwError("Couldn't allocate memory for string terminator in neighbour NodeID");
         }
@@ -300,16 +344,13 @@ void parseRightSide(Node *leftSideNode) {
         // check if id is valid
         if (id->len == 0) {
             freeNodeID(id);
-            freeNode(node);
-            freeNodeList(list);
+            freeNodeIDList(IDList);
             freeEverything();
             throwError("Error while parsing right side. Invalid ID");
         }
 
-        addIDToNode(node, id);
-        if (!addNodeToNodeList(list, node)) {
-            freeNode(node);
-            freeNodeList(list);
+        if (!addIDToIDList(IDList, id)) {
+            freeNodeIDList(IDList);
             freeEverything();
             throwError("Couldn't add node to neighbour nodeList");
         }
@@ -318,18 +359,18 @@ void parseRightSide(Node *leftSideNode) {
     // change value of left hand side node
     if (currChar == '-') leftSideNode->value = parseValue();
     // disallow empty lists without change of value
-    else if (list->len == 0) {
-        freeNodeList(list);
+    else if (IDList->len == 0) {
+        freeNodeIDList(IDList);
         freeEverything();
         throwError("Right side has to have at least one node or a different starting value");
     } else if (currChar != '\n') {
-        freeNodeList(list);
+        freeNodeIDList(IDList);
         freeEverything();
         throwError("Error when parsing right side. Comma, dash or linefeed expected");
     }
 
-    // set nodelist as neighbour list for leftSideNode
-    leftSideNode->neighbours = list;
+    // set nodelist as neighbour IDList for leftSideNode
+    leftSideNode->neighbourIDs = IDList;
 }
 
 void parseStartingNodeID() {
@@ -389,8 +430,8 @@ void scanContents() {
         if (stillNodesToBeParsed) {
             printf("ID: %s\n\n", nodelist->nodes[i++]->id->value);
 
-            // add neighbours of recently added Node
-            Node *currNode = nodelist->nodes[nodelist->len-1];
+            // add neighbourIDs of recently added Node
+            Node *currNode = nodelist->nodes[(nodelist->len)-1];
             parseRightSide(currNode);
         }
     }
