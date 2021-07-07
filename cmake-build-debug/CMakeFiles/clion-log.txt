@@ -1,4 +1,10 @@
 "D:\Programme\CLion 2021.1\bin\cmake\win\bin\cmake.exe" -DCMAKE_BUILD_TYPE=Debug -G "CodeBlocks - MinGW Makefiles" C:\Users\Justin\CLionProjects\AntGraph
+-- The C compiler identification is GNU 8.1.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: D:/Programme/mingw-w64/i686-8.1.0-posix-dwarf-rt_v6-rev0/mingw32/bin/gcc.exe - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
 -- Configuring done
 -- Generating done
 -- Build files have been written to: C:/Users/Justin/CLionProjects/AntGraph/cmake-build-debug
