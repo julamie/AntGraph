@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 
 typedef char* ID;
 
@@ -31,7 +32,6 @@ typedef struct {
 // -------------------------------------------------------------
 
 // TODO: Compress frees by adding earlier?
-//unsigned int runs = 0;
 NodeList *nodelist;
 NodeID *startingNodeID;
 unsigned int numOfSteps;
@@ -45,7 +45,6 @@ void freeNodeID(NodeID *id) {
 
 void freeNodeIDList(NodeIDList *IDList) {
     for (unsigned int i = 0; i < IDList->len; i++) {
-        //printf("Freeing Index %d: %s\n", 0, IDList->IDs[0]->value);
         freeNodeID(IDList->IDs[i]);
     }
     free(IDList->IDs);
@@ -235,10 +234,11 @@ bool parseLeftSide() {
         throwError("Error when allocating memory for id or node");
     }
 
-    // add every allowed char to id
-    currChar = (char) getchar();
+    // add the id pointer to node
+    addIDToNode(node, id);
 
     // check if the list of new nodes is finished
+    currChar = (char) getchar();
     if (currChar == 'A') {
         if (getchar() != ':') {
             freeNodeID(id);
@@ -246,9 +246,8 @@ bool parseLeftSide() {
             throwError("Error when parsing starting node. Colon after 'A' expected");
         }
 
-        // free them cause there are not needed
-        freeNodeID(id);
-        free(node);
+        // free the node cause it is not needed
+        freeNode(node);
 
         return false;
     }
@@ -258,34 +257,29 @@ bool parseLeftSide() {
                (currChar >= '0' && currChar <= '9')) {
 
             if(!addCharToNodeID(id, currChar)) {
-                freeNodeID(id);
-                free(node);
+                freeNode(node);
                 throwError("Couldn't allocate memory for more letters in NodeID");
             }
 
             currChar = (char) getchar();
         }
         if (!addCharToNodeID(id, '\0')) {
-            freeNodeID(id);
-            free(node);
+            freeNode(node);
             throwError("Couldn't allocate memory for string terminator in NodeID");
         }
 
         // check if the ID is acceptable and ends with a colon
         if (id->len == 0) {
-            freeNodeID(id);
-            free(node);
+            freeNode(node);
             throwError("Error when parsing left side. Invalid ID");
         } else if (currChar != ':') {
-            freeNodeID(id);
-            free(node);
+            freeNode(node);
             throwError("Error when parsing left side. Colon or alphanumerical value after NodeID expected");
         }
 
-        // add the id to node and add that to nodelist
-        addIDToNode(node, id);
+        // add the node to nodelist
         if(!addNodeToNodeList(nodelist, node)) {
-            free(node);
+            freeNode(node);
             throwError("Couldn't add node to nodelist");
         }
 
@@ -302,13 +296,19 @@ void parseRightSide(Node *leftSideNode) {
     do {
         id = createNewID();
 
+        // add id pointer to IDList
+        if (!addIDToIDList(IDList, id)) {
+            freeNodeID(id);
+            freeNodeIDList(IDList);
+            throwError("Couldn't add node to neighbour nodeList");
+        }
+
         // add every allowed char to id
         currChar = (char) getchar();
         while ((currChar >= 'a' && currChar <= 'z') ||
                (currChar >= '0' && currChar <= '9')) {
 
             if (!addCharToNodeID(id, currChar)) {
-                freeNodeID(id);
                 freeNodeIDList(IDList);
                 throwError("Couldn't allocate memory for more letters in neighbour NodeID");
             }
@@ -316,22 +316,16 @@ void parseRightSide(Node *leftSideNode) {
             currChar = (char) getchar();
         }
         if (!addCharToNodeID(id, '\0')) {
-            freeNodeID(id);
             freeNodeIDList(IDList);
             throwError("Couldn't allocate memory for string terminator in neighbour NodeID");
         }
 
         // check if id is valid, empty right side with value redefinition is allowed
         if (id->len == 0 && !(IDList->len == 0 && currChar == '-')) {
-            freeNodeID(id);
             freeNodeIDList(IDList);
             throwError("Error while parsing right side. Invalid ID");
         }
 
-        if (!addIDToIDList(IDList, id)) {
-            freeNodeIDList(IDList);
-            throwError("Couldn't add node to neighbour nodeList");
-        }
     } while (currChar == ',');
 
     // change value of left hand side node
