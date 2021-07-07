@@ -3,6 +3,7 @@
 #include <stdbool.h>
 //#include <string.h>
 
+typedef struct NodeList NodeList;
 typedef char* ID;
 
 typedef struct {
@@ -13,19 +14,20 @@ typedef struct {
 
 typedef struct {
     NodeID *id;
-    NodeID *neighbours;
+    NodeList *neighbours;
     unsigned int value;
-    unsigned int numNeighbours;
 } Node;
 
-typedef struct {
+struct NodeList {
     Node** nodes;
     unsigned int size;
     unsigned int len;
-} NodeList;
+};
 
 // -------------------------------------------------------------
 
+// TODO: Merge freeEverything and throwError?
+// TODO: Compress frees by adding earlier?
 //unsigned int runs = 0;
 NodeList *nodelist;
 NodeID *startingNodeID;
@@ -40,6 +42,7 @@ void freeNodeID(NodeID *id) {
 
 void freeNode(Node *node) {
     freeNodeID(node->id);
+    if (node->neighbours != NULL) // TODO: Free NodeList properly
     free(node);
 }
 
@@ -113,7 +116,6 @@ Node* createNewNode() {
     node->id = NULL;
     node->value = 0;
     node->neighbours = NULL;
-    node->numNeighbours = 0;
 
     return node;
 }
@@ -228,7 +230,6 @@ bool parseLeftSide() {
                 free(node);
                 freeEverything();
                 throwError("Couldn't allocate memory for more letters in NodeID");
-                exit(-1);
             }
 
             currChar = (char) getchar();
@@ -237,8 +238,7 @@ bool parseLeftSide() {
             freeNodeID(id);
             free(node);
             freeEverything();
-            throwError("Couldn't allocate memory for more letters in NodeID");
-            exit(-1);
+            throwError("Couldn't allocate memory for string terminator in NodeID");
         }
 
         // check if the ID is acceptable and ends with a colon
@@ -247,13 +247,11 @@ bool parseLeftSide() {
             free(node);
             freeEverything();
             throwError("Error when parsing left side. Invalid ID");
-            exit(-1); // unnecessary
         } else if (currChar != ':') {
             freeNodeID(id);
             free(node);
             freeEverything();
             throwError("Error when parsing left side. Colon or alphanumerical value after NodeID expected");
-            exit(-1); // unnecessary
         }
 
         // add the id to node and add that to nodelist
@@ -267,62 +265,72 @@ bool parseLeftSide() {
         return true;
     }
 }
-/*
-void parseRightSide(Node *leftSideNode) {
-    NodeList list;
-    NodeID id;
-    char currChar;
-    unsigned int size;
-    unsigned int len;
 
-    initNodeList(&list, 5);
+void parseRightSide(Node *leftSideNode) {
+    NodeID *id = createNewID();
+    Node *node = createNewNode();
+    NodeList *list = createNewNodeList();
+    char currChar;
+
     // parse every id while there is a comma after it
     do {
-        size = 10;
-        len = 0;
-
-        // make space for id
-        id = createNewID(size);
-
         // add every allowed char to id
         currChar = (char) getchar();
         while ((currChar >= 'a' && currChar <= 'z') ||
                (currChar >= '0' && currChar <= '9')) {
-            addCharToNodeID(id, currChar, size, len++);
-            if (len == size) size = size * 2;
+
+            if (!addCharToNodeID(id, currChar)) {
+                freeNodeID(id);
+                freeNode(node);
+                freeNodeList(list);
+                freeEverything();
+                throwError("Couldn't allocate memory for more letters in neighbour NodeID");
+            }
 
             currChar = (char) getchar();
         }
+        if (!addCharToNodeID(id, '\0')) {
+            freeNodeID(id);
+            freeNode(node);
+            freeNodeList(list);
+            freeEverything();
+            throwError("Couldn't allocate memory for string terminator in neighbour NodeID");
+        }
 
-        // end the string and clip it behind the '\0'
-        id[len++] = '\0';
-        NodeID temp = realloc(id, sizeof(*id) * len);
-        if (temp == NULL) throwError("Error when removing unnecessary space from NodeID");
-        else id = temp;
+        // check if id is valid
+        if (id->len == 0) {
+            freeNodeID(id);
+            freeNode(node);
+            freeNodeList(list);
+            freeEverything();
+            throwError("Error while parsing right side. Invalid ID");
+        }
 
-        if (len != 0) {
-            printf("Rest: %s\n", id);
-            Node newNode = createNewNode(&id);
-            addToList(&list, newNode); // add id to result array
+        addIDToNode(node, id);
+        if (!addNodeToNodeList(list, node)) {
+            freeNode(node);
+            freeNodeList(list);
+            freeEverything();
+            throwError("Couldn't add node to neighbour nodeList");
         }
     } while (currChar == ',');
 
-    if (currChar == '-') {
-        // change value of left hand side node
-        unsigned int value = parseValue();
-        leftSideNode->value = value;
-        printf("Value: %d\n", value);
-    } else if (len == 0) {
-        throwError("Error while parsing right side. No empty IDs allowed");
+    // change value of left hand side node
+    if (currChar == '-') leftSideNode->value = parseValue();
+    // disallow empty lists without change of value
+    else if (list->len == 0) {
+        freeNodeList(list);
+        freeEverything();
+        throwError("Right side has to have at least one node or a different starting value");
     } else if (currChar != '\n') {
+        freeNodeList(list);
+        freeEverything();
         throwError("Error when parsing right side. Comma, dash or linefeed expected");
     }
 
-    free(id);
-
-    return nodelist;
+    // set nodelist as neighbour list for leftSideNode
+    leftSideNode->neighbours = list;
 }
-*/
 
 void parseStartingNodeID() {
     char currChar;
@@ -381,8 +389,9 @@ void scanContents() {
         if (stillNodesToBeParsed) {
             printf("ID: %s\n\n", nodelist->nodes[i++]->id->value);
 
-            // skip till next newline (temporary)
-            while (getchar() != '\n') {}
+            // add neighbours of recently added Node
+            Node *currNode = nodelist->nodes[nodelist->len-1];
+            parseRightSide(currNode);
         }
     }
 
