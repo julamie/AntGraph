@@ -123,9 +123,11 @@ bool addCharToNodeID(NodeID *id, char c) {
 
 // helper function for qsort
 int compareIDs(const void *lp, const void *rp) {
-    Node *leftNode = (Node*) lp;
-    Node *rightNode = (Node*) rp;
+    // cast void pointer to Node** and then dereference it to a Node pointer
+    Node *leftNode = *(Node**) lp;
+    Node *rightNode = *(Node**) rp;
 
+    // return comparison between IDs
     return strcmp(leftNode->id->value, rightNode->id->value);
 }
 
@@ -209,7 +211,7 @@ bool addNodeToNodeList(NodeList *list, Node *node) {
 
 // sorts a nodelist
 void sortNodeList(NodeList *list) {
-    qsort(list->nodes, list->len, sizeof(Node), compareIDs);
+    qsort(list->nodes, list->len, sizeof(Node*), compareIDs);
 }
 
 void printNodeList(NodeList *list) {
@@ -394,12 +396,11 @@ void parseNumSteps() {
 
 // run each line of stdin
 void scanContents() {
-    int i = 0;
     bool stillNodesToBeParsed = true;
     while (stillNodesToBeParsed) {
         stillNodesToBeParsed = parseLeftSide();
         if (stillNodesToBeParsed) {
-            printf("ID: %s\n", nodelist->nodes[i++]->id->value);
+            //printf("ID: %s\n", nodelist->nodes[i++]->id->value);
 
             // add neighbourIDs of recently added Node
             Node *currNode = nodelist->nodes[(nodelist->len)-1];
@@ -437,9 +438,9 @@ void init() {
 int main() {
     init();
     scanContents();
-    printNodeList(nodelist);
-    //sortNodeList(nodelist);
     //printNodeList(nodelist);
+    sortNodeList(nodelist);
+    printNodeList(nodelist);
     freeEverything();
 
     return 0;
