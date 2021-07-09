@@ -26,7 +26,6 @@ struct NodeList{
 
 // -------------------------------------------------------------
 
-// TODO: Cases where createXY fails
 NodeList *nodelist;
 NodeID *startingNodeID;
 unsigned int numOfSteps;
@@ -322,15 +321,28 @@ bool parseLeftSide() {
 }
 
 void parseRightSide(Node *leftSideNode) {
+    char currChar;
     NodeID *id;
     Node *node;
+
     NodeList *list = createNewNodeList();
-    char currChar;
+    if (list == NULL) throwError("Couldn't create a NodeList while parsing right side");
 
     // parse every id while there is a comma after it
     do {
         id = createNewID();
+        if (id == NULL) {
+            freeNodeList(list);
+            throwError("Couldn't create a NodeID while parsing right side");
+            exit(-1); // unnecessary
+        }
+
         node = createNewNode();
+        if (node == NULL) {
+            freeNodeID(id);
+            freeNodeList(list);
+            throwError("Couldn't create a Node while parsing right side");
+        }
 
         // add id to node
         addIDToNode(node, id);
@@ -419,16 +431,10 @@ void scanContents() {
     while (stillNodesToBeParsed) {
         stillNodesToBeParsed = parseLeftSide();
         if (stillNodesToBeParsed) {
-            //printf("ID: %s\n", nodelist->nodes[i++]->id->value);
 
             // add neighbours of recently added Node
             Node *currNode = nodelist->nodes[(nodelist->len)-1];
             parseRightSide(currNode);
-            //printf("Neighbours: ");
-            for (unsigned int k = 0; k < currNode->neighbours->len; k++) {
-                //printf("%s, ", currNode->neighbours->IDs[k]->value);
-            }
-            //printf("\n");
         }
     }
 
