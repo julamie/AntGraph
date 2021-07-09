@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <string.h>
 
+typedef struct NodeList NodeList;
 typedef char* ID;
 
 typedef struct {
@@ -12,48 +13,36 @@ typedef struct {
 } NodeID;
 
 typedef struct {
-    NodeID** IDs;
-    unsigned int len;
-    unsigned int size;
-} NodeIDList;
-
-typedef struct {
     NodeID *id;
-    NodeIDList *neighbourIDs;
+    NodeList *neighbours;
     unsigned int value;
 } Node;
 
-typedef struct {
+struct NodeList{
     Node** nodes;
     unsigned int len;
     unsigned int size;
-}NodeList;
+};
 
 // -------------------------------------------------------------
 
+// TODO: Cases where createXY fails
 NodeList *nodelist;
 NodeID *startingNodeID;
 unsigned int numOfSteps;
 
 // -------------------------------------------------------------
+void freeNodeList(NodeList *list);
 
 void freeNodeID(NodeID *id) {
     free(id->value);
     free(id);
 }
 
-void freeNodeIDList(NodeIDList *IDList) {
-    for (unsigned int i = 0; i < IDList->len; i++) {
-        freeNodeID(IDList->IDs[i]);
-    }
-    free(IDList->IDs);
-    free(IDList);
-}
-
 void freeNode(Node *node) {
     freeNodeID(node->id);
-    if (node->neighbourIDs != NULL) {
-        freeNodeIDList(node->neighbourIDs);
+    if (node->neighbours != NULL) {
+        freeNodeList(node->neighbours);
     }
     free(node);
 }
@@ -121,36 +110,6 @@ bool addCharToNodeID(NodeID *id, char c) {
     return true;
 }
 
-NodeIDList* createNewIDList() {
-    NodeIDList *list = malloc(sizeof(NodeIDList));
-    if (list == NULL) return NULL;
-
-    list->size = 5;
-    list->len = 0;
-
-    list->IDs = malloc(sizeof(NodeID) * list->size);
-    if (list->IDs == NULL) {
-        free(list);
-        return NULL;
-    }
-
-    return list;
-}
-
-bool addIDToIDList(NodeIDList *list, NodeID *id) {
-    if (list->len == list->size) {
-        list->size *= 2;
-
-        NodeID **temp = realloc(list->IDs, sizeof(NodeID) * list->size);
-        if (temp == NULL) return false;
-        else list->IDs = temp;
-    }
-
-    list->IDs[list->len++] = id;
-
-    return true;
-}
-
 // creates a new node with a pointer to an ID
 Node* createNewNode() {
     Node *node = malloc(sizeof(Node));
@@ -158,7 +117,7 @@ Node* createNewNode() {
 
     node->id = NULL;
     node->value = 0;
-    node->neighbourIDs = NULL;
+    node->neighbours = NULL;
 
     return node;
 }
@@ -208,6 +167,7 @@ bool addNodeToNodeList(NodeList *list, Node *node) {
     return true;
 }
 
+// adds a node into a node list at position index
 bool addNodeInsideOfNodeList(NodeList *list, Node *node, unsigned int index) {
     if (list->len == list->size) {
         list->size *= 2;
@@ -229,6 +189,7 @@ bool addNodeInsideOfNodeList(NodeList *list, Node *node, unsigned int index) {
     return true;
 }
 
+/*
 // returns the index if nodeId is in nodelist, else returns -1
 int findIDInNodeList(NodeList *list, NodeID *nodeId) {
     // use binary search
@@ -250,7 +211,7 @@ int findIDInNodeList(NodeList *list, NodeID *nodeId) {
 
     // not found
     return -1;
-}
+}*/
 
 // helper function for sorting a nodelist
 int compareNodes(const void *lp, const void *rp) {
@@ -362,17 +323,22 @@ bool parseLeftSide() {
 
 void parseRightSide(Node *leftSideNode) {
     NodeID *id;
-    NodeIDList *IDList = createNewIDList();
+    Node *node;
+    NodeList *list = createNewNodeList();
     char currChar;
 
     // parse every id while there is a comma after it
     do {
         id = createNewID();
+        node = createNewNode();
 
-        // add id pointer to IDList
-        if (!addIDToIDList(IDList, id)) {
-            freeNodeID(id);
-            freeNodeIDList(IDList);
+        // add id to node
+        addIDToNode(node, id);
+
+        // add id pointer to list
+        if (!addNodeToNodeList(list, node)) {
+            freeNode(node);
+            freeNodeList(list);
             throwError("Couldn't add node to neighbour nodeList");
         }
 
@@ -382,20 +348,20 @@ void parseRightSide(Node *leftSideNode) {
                (currChar >= '0' && currChar <= '9')) {
 
             if (!addCharToNodeID(id, currChar)) {
-                freeNodeIDList(IDList);
+                freeNodeList(list);
                 throwError("Couldn't allocate memory for more letters in neighbour NodeID");
             }
 
             currChar = (char) getchar();
         }
         if (!addCharToNodeID(id, '\0')) {
-            freeNodeIDList(IDList);
+            freeNodeList(list);
             throwError("Couldn't allocate memory for string terminator in neighbour NodeID");
         }
 
         // check if id is valid, empty right side with value redefinition is allowed
-        if (id->len == 0 && !(IDList->len == 1 && currChar == '-')) {
-            freeNodeIDList(IDList);
+        if (id->len == 0 && !(list->len == 1 && currChar == '-')) {
+            freeNodeList(list);
             throwError("Error while parsing right side. Invalid ID");
         }
 
@@ -404,16 +370,16 @@ void parseRightSide(Node *leftSideNode) {
     // change value of left hand side node
     if (currChar == '-') leftSideNode->value = parseValue();
     // disallow empty lists without change of value
-    else if (IDList->len == 0) {
-        freeNodeIDList(IDList);
+    else if (list->len == 0) {
+        freeNodeList(list);
         throwError("Right side has to have at least one node or a different starting value");
     } else if (currChar != '\n') {
-        freeNodeIDList(IDList);
+        freeNodeList(list);
         throwError("Error when parsing right side. Comma, dash or linefeed expected");
     }
 
     // set nodelist as neighbour IDList for leftSideNode
-    leftSideNode->neighbourIDs = IDList;
+    leftSideNode->neighbours = list;
 }
 
 void parseStartingNodeID() {
@@ -455,12 +421,12 @@ void scanContents() {
         if (stillNodesToBeParsed) {
             //printf("ID: %s\n", nodelist->nodes[i++]->id->value);
 
-            // add neighbourIDs of recently added Node
+            // add neighbours of recently added Node
             Node *currNode = nodelist->nodes[(nodelist->len)-1];
             parseRightSide(currNode);
             //printf("Neighbours: ");
-            for (unsigned int k = 0; k < currNode->neighbourIDs->len; k++) {
-                //printf("%s, ", currNode->neighbourIDs->IDs[k]->value);
+            for (unsigned int k = 0; k < currNode->neighbours->len; k++) {
+                //printf("%s, ", currNode->neighbours->IDs[k]->value);
             }
             //printf("\n");
         }
