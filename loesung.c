@@ -76,7 +76,7 @@ NodeID* createNewID() {
     NodeID *nodeID = malloc(sizeof(NodeID));
     if (nodeID == NULL) return NULL;
 
-    nodeID->value = malloc(sizeof(char) * size);
+    nodeID->value = calloc(size, sizeof(char));
     if (nodeID->value == NULL) {
         free(nodeID);
         return NULL;
@@ -121,15 +121,6 @@ Node* createNewNode() {
     return node;
 }
 
-Node* createNewNodeFromNodeID(NodeID *id) {
-    Node *node = createNewNode();
-    if (node == NULL) return NULL;
-
-    node->id = id;
-
-    return node;
-}
-
 void addIDToNode(Node *node, NodeID *id) {
     node->id = id;
 }
@@ -151,19 +142,21 @@ NodeList* createNewNodeList() {
     return list;
 }
 
-// adds a pointer to a node to a nodeList
-bool addNodeToNodeList(NodeList *list, Node *node) {
-    if (list->len == list->size) {
-        list->size *= 2;
+// get the index where to put a node into a NodeList using binary search
+unsigned int getIndexForInsertion(NodeList *list, Node *node, int left, int right) {
 
-        Node **temp = realloc(list->nodes, sizeof(Node*) * list->size);
-        if (temp == NULL) return false;
-        else list->nodes = temp;
+    // if there is only one space to search for
+    if (left >= right) {
+        if (strcmp(node->id->value, list->nodes[left]->id->value) > 0) return left + 1;
+        else return left;
     }
 
-    list->nodes[list->len++] = node;
+    unsigned int middle = (left + right) / 2;
+    int cmpVal = strcmp(node->id->value, list->nodes[middle]->id->value);
 
-    return true;
+    if (cmpVal == 0) return middle + 1;
+    else if (cmpVal > 0) return getIndexForInsertion(list, node, (int) (middle + 1), right);
+    else return getIndexForInsertion(list, node, left, (int) (middle - 1));
 }
 
 // adds a node into a node list at position index
@@ -176,7 +169,7 @@ bool addNodeInsideOfNodeList(NodeList *list, Node *node, unsigned int index) {
         else list->nodes = temp;
     }
 
-    for (unsigned int i = list->len - 1; i >= index; i--) {
+    for (int i = (int) list->len - 1; i >= (int) index; i--) {
         list->nodes[i + 1] = list->nodes[i];
     }
 
@@ -188,9 +181,28 @@ bool addNodeInsideOfNodeList(NodeList *list, Node *node, unsigned int index) {
     return true;
 }
 
+// adds a pointer to a node to a nodeList
+bool addNodeToNodeList(NodeList *list, Node *node) {
+    if (list->len == list->size) {
+        list->size *= 2;
+
+        Node **temp = realloc(list->nodes, sizeof(Node*) * list->size);
+        if (temp == NULL) return false;
+        else list->nodes = temp;
+    }
+
+    if (list->len == 0) list->nodes[list->len++] = node;
+    else {
+        unsigned int index = getIndexForInsertion(list, node, 0, (int) list->len - 1);
+        return addNodeInsideOfNodeList(list, node, index);
+    }
+
+    return true;
+}
+
 /*
 // returns the index if nodeId is in nodelist, else returns -1
-int findIDInNodeList(NodeList *list, NodeID *nodeId) {
+bool isIDInNodeList(NodeList *list, NodeID *nodeId) {
     // use binary search
     int left = 0;
     int right = (int) list->len - 1;
@@ -200,7 +212,7 @@ int findIDInNodeList(NodeList *list, NodeID *nodeId) {
         int cmpVal = strcmp(list->nodes[middle]->id->value, nodeId->value);
 
         if (cmpVal == 0) {
-            return middle;
+            return true;
         } else if (cmpVal > 0) {
             right = middle - 1;
         } else {
@@ -208,24 +220,8 @@ int findIDInNodeList(NodeList *list, NodeID *nodeId) {
         }
     }
 
-    // not found
-    return -1;
+    return false;
 }*/
-
-// helper function for sorting a nodelist
-int compareNodes(const void *lp, const void *rp) {
-    // cast void pointer to Node** and then dereference it to a Node pointer
-    Node *leftNode = *(Node**) lp;
-    Node *rightNode = *(Node**) rp;
-
-    // return comparison between IDs
-    return strcmp(leftNode->id->value, rightNode->id->value);
-}
-
-// sorts a nodelist
-void sortNodeList(NodeList *list) {
-    qsort(list->nodes, list->len, sizeof(Node*), compareNodes);
-}
 
 void printNodeList(NodeList *list) {
     for (unsigned int i = 0; i < list->len; i++) {
@@ -254,8 +250,8 @@ unsigned int parseValue() {
     return (unsigned int) value;
 }
 
-// gives a node its ID, returns whether there are more left sides to be parsed
-bool parseLeftSide() {
+// gives a node its ID, returns either pointer to Node or NULL if no node will be needed
+Node* parseLeftSide() {
     char currChar;
 
     NodeID *id = createNewID();
@@ -282,7 +278,7 @@ bool parseLeftSide() {
         // free the node cause it is not needed
         freeNode(node);
 
-        return false;
+        return NULL;
     }
     // parse ID
     else {
@@ -316,7 +312,7 @@ bool parseLeftSide() {
             throwError("Couldn't add node to nodelist");
         }
 
-        return true;
+        return node;
     }
 }
 
@@ -427,16 +423,16 @@ void parseNumSteps() {
 
 // run each line of stdin
 void scanContents() {
-    bool stillNodesToBeParsed = true;
-    while (stillNodesToBeParsed) {
-        stillNodesToBeParsed = parseLeftSide();
-        if (stillNodesToBeParsed) {
+    Node *currNode;
 
-            // add neighbours of recently added Node
-            Node *currNode = nodelist->nodes[(nodelist->len)-1];
+    // parse all lines till you get to indicator for startingNodeID parsing start
+    do {
+        currNode = parseLeftSide();
+
+        if (currNode != NULL) {
             parseRightSide(currNode);
         }
-    }
+    } while (currNode != NULL);
 
     // parse the ID of the starting node and the number of steps
     parseStartingNodeID();
@@ -444,11 +440,6 @@ void scanContents() {
     parseNumSteps();
     printf("Number of steps: %u\n", numOfSteps);
 }
-
-/*
-void addRemainingNodesToNodeList(NodeList* list) {
-    for (unsigned int i = 0; )
-}*/
 
 // -----------------------------------------------------------------------
 
@@ -470,15 +461,6 @@ void init() {
 int main() {
     init();
     scanContents();
-    //printNodeList(nodelist);
-    sortNodeList(nodelist);
-    NodeID *id = createNewID();
-    addCharToNodeID(id, 't');
-    addCharToNodeID(id, 'e');
-    addCharToNodeID(id, '\0');
-    Node* test = createNewNodeFromNodeID(id);
-    //printNodeList(nodelist);
-    addNodeInsideOfNodeList(nodelist, test, 1);
     printNodeList(nodelist);
     freeEverything();
 
