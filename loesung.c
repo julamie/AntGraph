@@ -143,6 +143,28 @@ NodeList* createNewNodeList() {
     return list;
 }
 
+// returns the pointer of element in nodelist if it has the same ID, else returns NULL
+Node* getPointerToIDInList(NodeList *list, NodeID *nodeId) {
+    // use binary search
+    int left = 0;
+    int right = (int) list->len - 1;
+
+    while (left <= right) {
+        int middle = left + (right - left) / 2;
+        int cmpVal = strcmp(list->nodes[middle]->id->value, nodeId->value);
+
+        if (cmpVal == 0) {
+            return list->nodes[middle];
+        } else if (cmpVal > 0) {
+            right = middle - 1;
+        } else {
+            left = middle + 1;
+        }
+    }
+
+    return NULL;
+}
+
 // get the index where to put a node into a NodeList using binary search
 unsigned int getIndexForInsertion(NodeList *list, Node *node, int left, int right) {
 
@@ -200,29 +222,6 @@ bool addNodeToNodeList(NodeList *list, Node *node) {
 
     return true;
 }
-
-/*
-// returns the index if nodeId is in nodelist, else returns -1
-bool isIDInNodeList(NodeList *list, NodeID *nodeId) {
-    // use binary search
-    int left = 0;
-    int right = (int) list->len - 1;
-
-    while (left <= right) {
-        int middle = left + (right - left) / 2;
-        int cmpVal = strcmp(list->nodes[middle]->id->value, nodeId->value);
-
-        if (cmpVal == 0) {
-            return true;
-        } else if (cmpVal > 0) {
-            right = middle - 1;
-        } else {
-            left = middle + 1;
-        }
-    }
-
-    return false;
-}*/
 
 void printNodeList(NodeList *list) {
     for (unsigned int i = 0; i < list->len; i++) {
@@ -311,6 +310,12 @@ Node* parseLeftSide() {
             throwError("Error when parsing left side. Colon or alphanumerical value after NodeID expected");
         }
 
+        // check if id is already taken
+        if (getPointerToIDInList(nodelist, id) != NULL) {
+            freeNode(node);
+            throwError("ID is already in used");
+        }
+
         // add the node to nodelist
         if(!addNodeToNodeList(nodelist, node)) {
             freeNode(node);
@@ -368,19 +373,21 @@ void parseRightSide(Node *leftSideNode) {
         }
 
         // check if id is valid, empty right side with value redefinition is allowed
-        if (id->len == 0 && !(list->len == 0 && currChar == '-')) {
+        if (id->len == 0) {
             freeNode(node);
-            freeNodeList(list);
-            throwError("Error while parsing right side. Invalid ID");
-        }
 
-        // add id pointer to list
-        if (id->len != 0 && !addNodeToNodeList(list, node)) {
-            freeNode(node);
-            freeNodeList(list);
-            throwError("Couldn't add node to neighbour nodeList");
+            if (!(list->len == 0 && currChar == '-')) {
+                freeNodeList(list);
+                throwError("Error while parsing right side. Invalid ID");
+            }
+        } else {
+            // add id pointer to list
+            if (!addNodeToNodeList(list, node)) {
+                freeNode(node);
+                freeNodeList(list);
+                throwError("Couldn't add node to neighbour nodeList");
+            }
         }
-
     } while (currChar == ',');
 
     // change value of left hand side node
