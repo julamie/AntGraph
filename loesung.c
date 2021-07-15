@@ -26,6 +26,7 @@ struct NodeList{
 
 // -------------------------------------------------------------
 
+// TODO: In ParseRightSide, search if id is in nodelist, if yes, put pointer there (freeing will be problem prob)
 NodeList *nodelist;
 NodeID *startingNodeID;
 unsigned int numOfSteps;
@@ -225,7 +226,11 @@ bool isIDInNodeList(NodeList *list, NodeID *nodeId) {
 
 void printNodeList(NodeList *list) {
     for (unsigned int i = 0; i < list->len; i++) {
-        printf("ID %u: %s\n", i + 1, list->nodes[i]->id->value);
+        if (list != nodelist) printf("\tID %u: %s\n", i + 1, list->nodes[i]->id->value);
+        else {
+            printf("ID %u: %s - %u\n", i + 1, list->nodes[i]->id->value, list->nodes[i]->value);
+            printNodeList(list->nodes[i]->neighbours);
+        }
     }
 }
 
@@ -343,19 +348,13 @@ void parseRightSide(Node *leftSideNode) {
         // add id to node
         addIDToNode(node, id);
 
-        // add id pointer to list
-        if (!addNodeToNodeList(list, node)) {
-            freeNode(node);
-            freeNodeList(list);
-            throwError("Couldn't add node to neighbour nodeList");
-        }
-
         // add every allowed char to id
         currChar = (char) getchar();
         while ((currChar >= 'a' && currChar <= 'z') ||
                (currChar >= '0' && currChar <= '9')) {
 
             if (!addCharToNodeID(id, currChar)) {
+                freeNode(node);
                 freeNodeList(list);
                 throwError("Couldn't allocate memory for more letters in neighbour NodeID");
             }
@@ -363,14 +362,23 @@ void parseRightSide(Node *leftSideNode) {
             currChar = (char) getchar();
         }
         if (!addCharToNodeID(id, '\0')) {
+            freeNode(node);
             freeNodeList(list);
             throwError("Couldn't allocate memory for string terminator in neighbour NodeID");
         }
 
         // check if id is valid, empty right side with value redefinition is allowed
-        if (id->len == 0 && !(list->len == 1 && currChar == '-')) {
+        if (id->len == 0 && !(list->len == 0 && currChar == '-')) {
+            freeNode(node);
             freeNodeList(list);
             throwError("Error while parsing right side. Invalid ID");
+        }
+
+        // add id pointer to list
+        if (id->len != 0 && !addNodeToNodeList(list, node)) {
+            freeNode(node);
+            freeNodeList(list);
+            throwError("Couldn't add node to neighbour nodeList");
         }
 
     } while (currChar == ',');
