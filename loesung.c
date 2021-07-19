@@ -469,6 +469,7 @@ void scanContents() {
     printf("Number of steps: %u\n", numOfSteps);
 }
 
+
 // add nodes which are not in nodelist yet and add connection B->A if A->B exists
 void completeNodelist() {
     NodeList *tempList = createNewNodeList();
@@ -495,7 +496,13 @@ void completeNodelist() {
     // add them to nodelist
     for (unsigned int i = 0; i < tempList->len; i++) {
         if (!addNodeToNodeList(nodelist, tempList->nodes[i])) {
-            freeNodeList(tempList);
+            // free remaining nodes in templist
+            for (unsigned int j = i; j < tempList->len; j++) {
+                freeNode(tempList->nodes[j]);
+            }
+            free(tempList->nodes);
+            free(tempList);
+
             throwError("Couldn't add an element of tempList to nodelist");
         }
     }
@@ -519,7 +526,7 @@ void completeNodelist() {
         }
     }
 
-    graphComplete = true;
+    graphComplete = true; // TODO: Find better fitting name
     freeNodeList(tempList);
 }
 
