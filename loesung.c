@@ -26,10 +26,10 @@ struct NodeList{
 
 // -------------------------------------------------------------
 
-// TODO: In ParseRightSide, search if id is in nodelist, if yes, put pointer there (freeing will be problem prob)
 NodeList *nodelist;
 NodeID *startingNodeID;
 unsigned int numOfSteps;
+bool graphComplete = false;
 
 // -------------------------------------------------------------
 void freeNodeList(NodeList *list);
@@ -41,22 +41,34 @@ void freeNodeID(NodeID *id) {
 
 void freeNode(Node *node) {
     freeNodeID(node->id);
-    if (node->neighbours != NULL) {
-        freeNodeList(node->neighbours);
-    }
+    if (node->neighbours != NULL) freeNodeList(node->neighbours);
     free(node);
 }
 
+// frees a nodelist, also frees the nodes inside if graph is not complete yet
 void freeNodeList(NodeList *list) {
-    for (unsigned int i = 0; i < list->len; i++) {
-        freeNode(list->nodes[i]);
+    if (!graphComplete || list == nodelist) {
+        for (unsigned int i = 0; i < list->len; i++) {
+            if (list->nodes[i] != NULL) {
+                freeNode(list->nodes[i]);
+                list->nodes[i] = NULL;
+            }
+        }
     }
+
     free(list->nodes);
     free(list);
 }
 
 // frees all allocated memory
-void freeEverything() {
+void freeMemory() {
+    // delete neighbour nodes if the graph is not complete yet
+    if (!graphComplete) {
+        for (unsigned int i = 0; i < nodelist->len; i++) {
+            freeNodeList(nodelist->nodes[i]->neighbours);
+        }
+    }
+
     freeNodeID(startingNodeID);
     freeNodeList(nodelist);
 }
@@ -64,7 +76,7 @@ void freeEverything() {
 // prints an error message and aborts the program
 void throwError(char *msg) {
     fprintf(stderr, "%s\n", msg);
-    freeEverything();
+    freeMemory();
     exit(EXIT_FAILURE);
 }
 
@@ -144,7 +156,7 @@ NodeList* createNewNodeList() {
 }
 
 // returns the pointer of element in nodelist if it has the same ID, else returns NULL
-Node* getPointerToIDInList(NodeList *list, NodeID *nodeId) {
+Node* isIDInNodelist(NodeList *list, NodeID *nodeId) {
     // use binary search
     int left = 0;
     int right = (int) list->len - 1;
@@ -166,18 +178,22 @@ Node* getPointerToIDInList(NodeList *list, NodeID *nodeId) {
 }
 
 // get the index where to put a node into a NodeList using binary search
-unsigned int getIndexForInsertion(NodeList *list, Node *node, int left, int right) {
+int getIndexForInsertion(NodeList *list, Node *node, int left, int right) {
 
     // if there is only one space to search for
     if (left >= right) {
-        if (strcmp(node->id->value, list->nodes[left]->id->value) > 0) return left + 1;
-        else return left;
+        int val = strcmp(node->id->value, list->nodes[left]->id->value);
+        if (val > 0) return left + 1;
+        else if (val < 0) return left;
+        else return -1; // there are no nodes with identical IDs allowed
     }
 
     unsigned int middle = (left + right) / 2;
     int cmpVal = strcmp(node->id->value, list->nodes[middle]->id->value);
 
-    if (cmpVal == 0) return middle + 1;
+    if (cmpVal == 0) {
+        return -1; // there are no nodes with identical IDs allowed
+    }
     else if (cmpVal > 0) return getIndexForInsertion(list, node, (int) (middle + 1), right);
     else return getIndexForInsertion(list, node, left, (int) (middle - 1));
 }
@@ -216,19 +232,22 @@ bool addNodeToNodeList(NodeList *list, Node *node) {
 
     if (list->len == 0) list->nodes[list->len++] = node;
     else {
-        unsigned int index = getIndexForInsertion(list, node, 0, (int) list->len - 1);
-        return addNodeInsideOfNodeList(list, node, index);
+        int index = getIndexForInsertion(list, node, 0, (int) list->len - 1);
+        if (index == -1) return false;
+        else return addNodeInsideOfNodeList(list, node, index);
     }
 
     return true;
 }
 
 void printNodeList(NodeList *list) {
-    for (unsigned int i = 0; i < list->len; i++) {
-        if (list != nodelist) printf("\tID %u: %s\n", i + 1, list->nodes[i]->id->value);
-        else {
-            printf("ID %u: %s - %u\n", i + 1, list->nodes[i]->id->value, list->nodes[i]->value);
-            printNodeList(list->nodes[i]->neighbours);
+    if (list != NULL) {
+        for (unsigned int i = 0; i < list->len; i++) {
+            if (list != nodelist) printf("\tID %u: %s\n", i + 1, list->nodes[i]->id->value);
+            else {
+                printf("ID %u: %s - %u\n", i + 1, list->nodes[i]->id->value, list->nodes[i]->value);
+                printNodeList(list->nodes[i]->neighbours);
+            }
         }
     }
 }
@@ -308,12 +327,6 @@ Node* parseLeftSide() {
         } else if (currChar != ':') {
             freeNode(node);
             throwError("Error when parsing left side. Colon or alphanumerical value after NodeID expected");
-        }
-
-        // check if id is already taken
-        if (getPointerToIDInList(nodelist, id) != NULL) {
-            freeNode(node);
-            throwError("ID is already in used");
         }
 
         // add the node to nodelist
@@ -456,6 +469,60 @@ void scanContents() {
     printf("Number of steps: %u\n", numOfSteps);
 }
 
+// add nodes which are not in nodelist yet and add connection B->A if A->B exists
+void completeNodelist() {
+    NodeList *tempList = createNewNodeList();
+    if (tempList == NULL) throwError("Couldn't create temporary nodelist for for completing Nodelist");
+
+    // find all node IDs which are not in nodelist
+    for (unsigned int i = 0; i < nodelist->len; i++) {
+        Node *currNode = nodelist->nodes[i];
+        for (unsigned int j = 0; j < currNode->neighbours->len; j++) {
+            Node *neighbourNode = currNode->neighbours->nodes[j];
+
+            // if newNode isn't either in nodelist nor tempList, add it to the temporary list
+            if (isIDInNodelist(nodelist, neighbourNode->id) == NULL &&
+                isIDInNodelist(tempList, neighbourNode->id) == NULL) {
+
+                if (!addNodeToNodeList(tempList, neighbourNode)) {
+                    freeNodeList(tempList);
+                    throwError("Couldn't add newNode to nodelist while completing the graph");
+                }
+            }
+        }
+    }
+
+    // add them to nodelist
+    for (unsigned int i = 0; i < tempList->len; i++) {
+        if (!addNodeToNodeList(nodelist, tempList->nodes[i])) {
+            freeNodeList(tempList);
+            throwError("Couldn't add an element of tempList to nodelist");
+        }
+    }
+
+    // replace all neighbour nodes with the pointers in nodelist
+    for (unsigned int i = 0; i < nodelist->len; i++) {
+        Node *currNode = nodelist->nodes[i];
+
+        // if the node wasn't recently added to nodelist
+        if (currNode->neighbours != NULL) {
+            for (unsigned int j = 0; j < currNode->neighbours->len; j++) {
+                Node *currNeighbour = currNode->neighbours->nodes[j];
+                Node *newNode = isIDInNodelist(nodelist, currNeighbour->id);
+
+                // switch nodes at that address if they are different
+                if (currNeighbour != newNode) {
+                    freeNode(currNeighbour);
+                    currNode->neighbours->nodes[j] = newNode;
+                }
+            }
+        }
+    }
+
+    graphComplete = true;
+    freeNodeList(tempList);
+}
+
 // -----------------------------------------------------------------------
 
 void init() {
@@ -477,7 +544,9 @@ int main() {
     init();
     scanContents();
     printNodeList(nodelist);
-    freeEverything();
+    completeNodelist();
+    printNodeList(nodelist);
+    freeMemory();
 
     return 0;
 }
