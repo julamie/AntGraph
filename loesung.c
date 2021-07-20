@@ -248,18 +248,6 @@ bool addNodeToNodeList(NodeList *list, Node *node) {
     return true;
 }
 
-void printNodeList(NodeList *list) {
-    if (list != NULL) {
-        for (unsigned int i = 0; i < list->len; i++) {
-            if (list != nodelist) printf("\tID %u: %s\n", i + 1, list->nodes[i]->id->value);
-            else {
-                printf("ID %u: %s - %u\n", i + 1, list->nodes[i]->id->value, list->nodes[i]->value);
-                printNodeList(list->nodes[i]->neighbours);
-            }
-        }
-    }
-}
-
 // -------------------------------------------------------------
 
 // reads a number string from stdin, converts and returns it
@@ -473,9 +461,7 @@ void scanContents() {
 
     // parse the ID of the starting node and the number of steps
     parseStartingNodeID();
-    printf("StartingNode: %s\n", startingNodeID->value);
     parseNumSteps();
-    printf("Number of steps: %u\n", numOfSteps);
 }
 
 // replaces all neighbour nodes with the pointers in nodelist
@@ -574,6 +560,27 @@ void completeConnections() {
 
 // -----------------------------------------------------------------------
 
+// prints the output of the program
+void printResult(NodeID *endNodeID) {
+    for (unsigned int i = 0; i < nodelist->len; i++) {
+        printf("%s:%u\n", nodelist->nodes[i]->id->value, nodelist->nodes[i]->value);
+    }
+    printf("E:%s\n", endNodeID->value);
+}
+
+void letAntMove() {
+    Node *currNode = getIDInNodelist(nodelist, startingNodeID);
+
+    // ant walks the graph down
+    while (numOfSteps > 0) {
+        Node *nextNode = currNode->neighbours->nodes[currNode->value++ % currNode->neighbours->len];
+        currNode = nextNode;
+        numOfSteps--;
+    }
+    printResult(currNode->id);
+}
+
+// -----------------------------------------------------------------------
 void init() {
     startingNodeID = createNewID();
     if (startingNodeID == NULL) {
@@ -595,8 +602,7 @@ int main() {
     completeNodelist();
     replaceNeighbourNodes();
     completeConnections();
-    printf("\nAfter completing connections\n");
-    printNodeList(nodelist);
+    letAntMove();
     freeMemory();
 
     return 0;
