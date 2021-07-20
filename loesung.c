@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <assert.h>
 
 typedef struct NodeList NodeList;
 typedef char* ID;
@@ -156,7 +157,7 @@ NodeList* createNewNodeList() {
 }
 
 // returns the pointer of element in nodelist if it has the same ID, else returns NULL
-Node* isIDInNodelist(NodeList *list, NodeID *nodeId) {
+Node* getIDInNodelist(NodeList *list, NodeID *nodeId) {
     // use binary search
     int left = 0;
     int right = (int) list->len - 1;
@@ -393,6 +394,13 @@ void parseRightSide(Node *leftSideNode) {
                 freeNodeList(list);
                 throwError("Error while parsing right side. Invalid ID");
             }
+        }
+        // TODO: fix segmentation fault
+        // loops are not allowed
+        else if (strcmp(leftSideNode->id->value, id->value) == 0) {
+            freeNode(node);
+            freeNodeList(list);
+            throwError("Loops are not allowed in graph");
         } else {
             // add id pointer to list
             if (!addNodeToNodeList(list, node)) {
@@ -469,8 +477,28 @@ void scanContents() {
     printf("Number of steps: %u\n", numOfSteps);
 }
 
+// replaces all neighbour nodes with the pointers in nodelist
+void replaceNeighbourNodes() {
+    for (unsigned int i = 0; i < nodelist->len; i++) {
+        Node *currNode = nodelist->nodes[i];
 
-// add nodes which are not in nodelist yet and add connection B->A if A->B exists
+        // if the node wasn't recently added to nodelist
+        if (currNode->neighbours != NULL) {
+            for (unsigned int j = 0; j < currNode->neighbours->len; j++) {
+                Node *currNeighbour = currNode->neighbours->nodes[j];
+                Node *newNode = getIDInNodelist(nodelist, currNeighbour->id);
+
+                // switch nodes at that address if they are different
+                if (currNeighbour != newNode) {
+                    freeNode(currNeighbour);
+                    currNode->neighbours->nodes[j] = newNode;
+                }
+            }
+        }
+    }
+}
+
+// add nodes which are not in nodelist yet
 void completeNodelist() {
     NodeList *tempList = createNewNodeList();
     if (tempList == NULL) throwError("Couldn't create temporary nodelist for for completing Nodelist");
@@ -482,8 +510,15 @@ void completeNodelist() {
             Node *neighbourNode = currNode->neighbours->nodes[j];
 
             // if newNode isn't either in nodelist nor tempList, add it to the temporary list
-            if (isIDInNodelist(nodelist, neighbourNode->id) == NULL &&
-                isIDInNodelist(tempList, neighbourNode->id) == NULL) {
+            if (getIDInNodelist(nodelist, neighbourNode->id) == NULL &&
+                    getIDInNodelist(tempList, neighbourNode->id) == NULL) {
+
+                // create space for neighbour nodes
+                neighbourNode->neighbours = createNewNodeList();
+                if (neighbourNode->neighbours == NULL) {
+                    freeNodeList(tempList);
+                    throwError("Couldn't make space for neighbours in neighbour node");
+                }
 
                 if (!addNodeToNodeList(tempList, neighbourNode)) {
                     freeNodeList(tempList);
@@ -507,27 +542,33 @@ void completeNodelist() {
         }
     }
 
-    // replace all neighbour nodes with the pointers in nodelist
+    graphComplete = true; // TODO: Find better fitting name
+    freeNodeList(tempList);
+}
+
+// adds connection B->A if A->B exists and checks if not both are already present
+void completeConnections() {
+    // add opposite direction
     for (unsigned int i = 0; i < nodelist->len; i++) {
         Node *currNode = nodelist->nodes[i];
 
-        // if the node wasn't recently added to nodelist
-        if (currNode->neighbours != NULL) {
-            for (unsigned int j = 0; j < currNode->neighbours->len; j++) {
-                Node *currNeighbour = currNode->neighbours->nodes[j];
-                Node *newNode = isIDInNodelist(nodelist, currNeighbour->id);
+        for (unsigned int j = 0; j < currNode->neighbours->len; j++) {
+            Node *destNode = getIDInNodelist(nodelist, currNode->neighbours->nodes[j]->id);
+            assert(destNode != NULL);
 
-                // switch nodes at that address if they are different
-                if (currNeighbour != newNode) {
-                    freeNode(currNeighbour);
-                    currNode->neighbours->nodes[j] = newNode;
+            // if currNode's ID is already a neighbour of destNode...
+            if (getIDInNodelist(destNode->neighbours, currNode->id) != NULL) {
+                // ...and connection wasn't previously added (currNode->id > destNode->id), throw error
+                if (strcmp(destNode->id->value, currNode->id->value) > 0) {
+                    throwError("If there is already a connection A->B, B->A is not allowed");
+                }
+            } else {
+                if (!addNodeToNodeList(destNode->neighbours, currNode)) {
+                    throwError("Couldn't add backwards vertex");
                 }
             }
         }
     }
-
-    graphComplete = true; // TODO: Find better fitting name
-    freeNodeList(tempList);
 }
 
 // -----------------------------------------------------------------------
@@ -550,8 +591,10 @@ void init() {
 int main() {
     init();
     scanContents();
-    printNodeList(nodelist);
     completeNodelist();
+    replaceNeighbourNodes();
+    completeConnections();
+    printf("\nAfter completing connections\n");
     printNodeList(nodelist);
     freeMemory();
 
