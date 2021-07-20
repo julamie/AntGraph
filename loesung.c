@@ -30,30 +30,44 @@ struct NodeList{
 NodeList *nodelist;
 NodeID *startingNodeID;
 unsigned int numOfSteps;
-bool graphComplete = false;
+bool neighbourNodesReplaced = false;
 
 // -------------------------------------------------------------
-void freeNodeList(NodeList *list);
+void freeNode(Node *node);
 
 void freeNodeID(NodeID *id) {
     free(id->value);
     free(id);
 }
 
+void freeNeighbourList(NodeList *list) {
+    // delete values of neighbourList if necessary
+    if (!neighbourNodesReplaced) {
+        for (unsigned int i = 0; i < list->len; i++) {
+            freeNode(list->nodes[i]);
+            list->nodes[i] = NULL;
+        }
+    }
+
+    free(list->nodes);
+    free(list);
+}
+
 void freeNode(Node *node) {
     freeNodeID(node->id);
-    if (node->neighbours != NULL) freeNodeList(node->neighbours);
+    if (node->neighbours != NULL) {
+        freeNeighbourList(node->neighbours);
+        node->neighbours = NULL;
+    }
     free(node);
 }
 
-// frees a nodelist, also frees the nodes inside if graph is not complete yet
+// frees a nodelist, also frees the nodes inside if deleteValues is true
 void freeNodeList(NodeList *list) {
-    if (!graphComplete || list == nodelist) {
-        for (unsigned int i = 0; i < list->len; i++) {
-            if (list->nodes[i] != NULL) {
-                freeNode(list->nodes[i]);
-                list->nodes[i] = NULL;
-            }
+    for (unsigned int i = 0; i < list->len; i++) {
+        if (list->nodes[i] != NULL) {
+            freeNode(list->nodes[i]);
+            list->nodes[i] = NULL;
         }
     }
 
@@ -63,13 +77,6 @@ void freeNodeList(NodeList *list) {
 
 // frees all allocated memory
 void freeMemory() {
-    // delete neighbour nodes if the graph is not complete yet
-    if (!graphComplete) {
-        for (unsigned int i = 0; i < nodelist->len; i++) {
-            freeNodeList(nodelist->nodes[i]->neighbours);
-        }
-    }
-
     freeNodeID(startingNodeID);
     freeNodeList(nodelist);
 }
@@ -542,8 +549,8 @@ void completeNodelist() {
         }
     }
 
-    graphComplete = true; // TODO: Find better fitting name
-    freeNodeList(tempList);
+    neighbourNodesReplaced = true;
+    freeNeighbourList(tempList);
 }
 
 // adds connection B->A if A->B exists and checks if not both are already present
