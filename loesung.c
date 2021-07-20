@@ -301,8 +301,7 @@ Node* parseLeftSide() {
     currChar = (char) getchar();
     if (currChar == 'A') {
         if (getchar() != ':') {
-            freeNodeID(id);
-            free(node); // cant use freeNode, cause id is not allocated
+            freeNode(node);
             throwError("Error when parsing starting node. Colon after 'A' expected");
         }
 
@@ -402,7 +401,6 @@ void parseRightSide(Node *leftSideNode) {
                 throwError("Error while parsing right side. Invalid ID");
             }
         }
-        // TODO: fix segmentation fault
         // loops are not allowed
         else if (strcmp(leftSideNode->id->value, id->value) == 0) {
             freeNode(node);
@@ -420,11 +418,7 @@ void parseRightSide(Node *leftSideNode) {
 
     // change value of left hand side node
     if (currChar == '-') leftSideNode->value = parseValue();
-    // disallow empty lists without change of value
-    else if (list->len == 0) {
-        freeNodeList(list);
-        throwError("Right side has to have at least one node or a different starting value");
-    } else if (currChar != '\n') {
+    else if (currChar != '\n') {
         freeNodeList(list);
         throwError("Error when parsing right side. Comma, dash or linefeed expected");
     }
