@@ -2,16 +2,16 @@ comp = gcc -g -o loesung -O3 -std=c11 -Wall -Werror -Wextra -Wpedantic -DNDEBUG 
 run = cat example_testcases/example_long_ID.stdin | ./loesung
 val = valgrind --leak-check=yes --show-leak-kinds=all ./loesung > /dev/null
 
-all: loesung.c compile run
-	$(comp)
-	$(run)
+all: loesung.c
+	@$(comp)
+	@$(run)
 
 compile: loesung.c
-	$(comp)
+	@$(comp)
 
 run:
-	$(run)
+	@$(run)
 
 check: loesung.c compile
-	$(comp)
-	cat example_testcases/example_long_ID.stdin | $(val)
+	@$(comp)
+	@cat example_testcases/example_long_ID.stdin | $(val)
