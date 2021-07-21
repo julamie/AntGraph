@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
-#include <assert.h>
 
 typedef struct NodeList NodeList;
 typedef char* ID;
@@ -27,7 +26,7 @@ struct NodeList{
 
 // -------------------------------------------------------------
 
-NodeList *nodelist;
+NodeList *nodelist; // holds all pointers to nodes in the graph
 NodeID *startingNodeID;
 unsigned int numOfSteps;
 bool neighbourNodesReplaced = false;
@@ -53,6 +52,7 @@ void freeNeighbourList(NodeList *list) {
     free(list);
 }
 
+// frees a node and the neighbourList if necessary
 void freeNode(Node *node) {
     freeNodeID(node->id);
     if (node->neighbours != NULL) {
@@ -62,7 +62,7 @@ void freeNode(Node *node) {
     free(node);
 }
 
-// frees a nodelist, also frees the nodes inside if deleteValues is true
+// frees a nodelist
 void freeNodeList(NodeList *list) {
     for (unsigned int i = 0; i < list->len; i++) {
         if (list->nodes[i] != NULL) {
@@ -90,7 +90,7 @@ void throwError(char *msg) {
 
 // -------------------------------------------------------------
 
-// allocates memory for a new NodeID, returns if program runs without errors
+// allocates memory for a new NodeID, returns pointer to NodeID if program runs without errors, else NULL
 NodeID* createNewID() {
     unsigned int size = 10;
 
@@ -111,6 +111,7 @@ NodeID* createNewID() {
 
 // adds a char to a NodeID and keeps enough space
 bool addCharToNodeID(NodeID *id, char c) {
+    // expand NodeID space if necessary
     if (id->len == id->size) {
         id->size *= 2;
 
@@ -121,7 +122,7 @@ bool addCharToNodeID(NodeID *id, char c) {
 
     // add char to NodeID
     if (c == '\0') {
-        id->value[id->len] = c;
+        id->value[id->len] = c; // TODO: Shrink
         id->size = id->len;
     } else {
         id->value[id->len++] = c;
@@ -130,7 +131,7 @@ bool addCharToNodeID(NodeID *id, char c) {
     return true;
 }
 
-// creates a new node with a pointer to an ID
+// creates a new node and returns the pointer to it
 Node* createNewNode() {
     Node *node = malloc(sizeof(Node));
     if (node == NULL) return NULL;
@@ -142,11 +143,12 @@ Node* createNewNode() {
     return node;
 }
 
+// sets the id of a node to id
 void addIDToNode(Node *node, NodeID *id) {
     node->id = id;
 }
 
-// creates a new NodeList with specified size
+// creates a new NodeList with specified size, returns a pointer to it
 NodeList* createNewNodeList() {
     NodeList *list = malloc(sizeof(NodeList));
     if (list == NULL) return NULL;
@@ -208,20 +210,11 @@ int getIndexForInsertion(NodeList *list, Node *node, int left, int right) {
 
 // adds a node into a node list at position index
 bool addNodeInsideOfNodeList(NodeList *list, Node *node, unsigned int index) {
-    if (list->len == list->size) {
-        list->size *= 2;
-
-        Node **temp = realloc(list->nodes, sizeof(Node*) * list->size);
-        if (temp == NULL) return false;
-        else list->nodes = temp;
-    }
-
+    // shift elements behind index one position to the right
     for (int i = (int) list->len - 1; i >= (int) index; i--) {
         list->nodes[i + 1] = list->nodes[i];
     }
 
-    //unsigned int numToShift = list->len - index;
-    //memmove(list->nodes[index + 1], list->nodes[index], sizeof(Node*) * numToShift);
     list->nodes[index] = node;
     list->len++;
 
@@ -230,6 +223,7 @@ bool addNodeInsideOfNodeList(NodeList *list, Node *node, unsigned int index) {
 
 // adds a pointer to a node to a nodeList
 bool addNodeToNodeList(NodeList *list, Node *node) {
+    // resize nodelist if it is full
     if (list->len == list->size) {
         list->size *= 2;
 
@@ -238,10 +232,12 @@ bool addNodeToNodeList(NodeList *list, Node *node) {
         else list->nodes = temp;
     }
 
+    // if list is empty, just insert it
     if (list->len == 0) list->nodes[list->len++] = node;
+    // else find the correct index and insert
     else {
         int index = getIndexForInsertion(list, node, 0, (int) list->len - 1);
-        if (index == -1) return false;
+        if (index == -1) return false; // identical id already in list
         else return addNodeInsideOfNodeList(list, node, index);
     }
 
@@ -300,10 +296,11 @@ Node* parseLeftSide() {
     }
     // parse ID
     else {
+        // add char to char to id
         while ((currChar >= 'a' && currChar <= 'z') ||
                (currChar >= '0' && currChar <= '9')) {
 
-            if(!addCharToNodeID(id, currChar)) {
+            if (!addCharToNodeID(id, currChar)) {
                 freeNode(node);
                 throwError("Couldn't allocate memory for more letters in NodeID");
             }
@@ -334,6 +331,7 @@ Node* parseLeftSide() {
     }
 }
 
+// parses the list of NodeIDs on the right side of a line and adds them to the leftSideNode's neighbour array
 void parseRightSide(Node *leftSideNode) {
     char currChar;
     NodeID *id;
@@ -380,10 +378,11 @@ void parseRightSide(Node *leftSideNode) {
             throwError("Couldn't allocate memory for string terminator in neighbour NodeID");
         }
 
-        // check if id is valid, empty right side with value redefinition is allowed
+        // check if id is valid
         if (id->len == 0) {
             freeNode(node);
 
+            // empty right side with value redefinition is allowed
             if (!(list->len == 0 && currChar == '-')) {
                 freeNodeList(list);
                 throwError("Error while parsing right side. Invalid ID");
@@ -415,6 +414,7 @@ void parseRightSide(Node *leftSideNode) {
     leftSideNode->neighbours = list;
 }
 
+// parses the NodeID of the startingNode
 void parseStartingNodeID() {
     char currChar;
 
@@ -434,9 +434,10 @@ void parseStartingNodeID() {
 
 }
 
+// parses number of steps, the ant will have to walk
 void parseNumSteps() {
     // handle errors
-    if(getchar() != 'I') throwError("Error when parsing number of steps. 'I' expected");
+    if (getchar() != 'I') throwError("Error when parsing number of steps. 'I' expected");
     if (getchar() != ':') throwError("Error when parsing number of steps. ':' after 'I' expected");
 
     numOfSteps = parseValue();
@@ -464,27 +465,6 @@ void scanContents() {
     parseNumSteps();
 }
 
-// replaces all neighbour nodes with the pointers in nodelist
-void replaceNeighbourNodes() {
-    for (unsigned int i = 0; i < nodelist->len; i++) {
-        Node *currNode = nodelist->nodes[i];
-
-        // if the node wasn't recently added to nodelist
-        if (currNode->neighbours != NULL) {
-            for (unsigned int j = 0; j < currNode->neighbours->len; j++) {
-                Node *currNeighbour = currNode->neighbours->nodes[j];
-                Node *newNode = getIDInNodelist(nodelist, currNeighbour->id);
-
-                // switch nodes at that address if they are different
-                if (currNeighbour != newNode) {
-                    freeNode(currNeighbour);
-                    currNode->neighbours->nodes[j] = newNode;
-                }
-            }
-        }
-    }
-}
-
 // add nodes which are not in nodelist yet
 void completeNodelist() {
     NodeList *tempList = createNewNodeList();
@@ -493,12 +473,13 @@ void completeNodelist() {
     // find all node IDs which are not in nodelist
     for (unsigned int i = 0; i < nodelist->len; i++) {
         Node *currNode = nodelist->nodes[i];
+
         for (unsigned int j = 0; j < currNode->neighbours->len; j++) {
             Node *neighbourNode = currNode->neighbours->nodes[j];
 
             // if newNode isn't either in nodelist nor tempList, add it to the temporary list
             if (getIDInNodelist(nodelist, neighbourNode->id) == NULL &&
-                    getIDInNodelist(tempList, neighbourNode->id) == NULL) {
+                getIDInNodelist(tempList, neighbourNode->id) == NULL) {
 
                 // create space for neighbour nodes
                 neighbourNode->neighbours = createNewNodeList();
@@ -507,6 +488,7 @@ void completeNodelist() {
                     throwError("Couldn't make space for neighbours in neighbour node");
                 }
 
+                // add neighbourNode to tempList
                 if (!addNodeToNodeList(tempList, neighbourNode)) {
                     freeNodeList(tempList);
                     throwError("Couldn't add newNode to nodelist while completing the graph");
@@ -515,9 +497,10 @@ void completeNodelist() {
         }
     }
 
-    // add them to nodelist
+    // add everything from tempList to nodelist
     for (unsigned int i = 0; i < tempList->len; i++) {
         if (!addNodeToNodeList(nodelist, tempList->nodes[i])) {
+
             // free remaining nodes in templist
             for (unsigned int j = i; j < tempList->len; j++) {
                 freeNode(tempList->nodes[j]);
@@ -529,8 +512,27 @@ void completeNodelist() {
         }
     }
 
+    // pointers of neighbourNodes are now in nodelist, don't free, otherwise double free
     neighbourNodesReplaced = true;
     freeNeighbourList(tempList);
+}
+
+// replaces all neighbour nodes with the pointers in nodelist
+void replaceNeighbourNodes() {
+    for (unsigned int i = 0; i < nodelist->len; i++) {
+        Node *currNode = nodelist->nodes[i];
+
+        for (unsigned int j = 0; j < currNode->neighbours->len; j++) {
+            Node *currNeighbour = currNode->neighbours->nodes[j];
+            Node *newNode = getIDInNodelist(nodelist, currNeighbour->id);
+
+            // switch nodes at that address if they are different
+            if (currNeighbour != newNode) {
+                freeNode(currNeighbour);
+                currNode->neighbours->nodes[j] = newNode;
+            }
+        }
+    }
 }
 
 // adds connection B->A if A->B exists and checks if not both are already present
@@ -539,9 +541,10 @@ void completeConnections() {
     for (unsigned int i = 0; i < nodelist->len; i++) {
         Node *currNode = nodelist->nodes[i];
 
+        // check all currNode's neighbours
         for (unsigned int j = 0; j < currNode->neighbours->len; j++) {
-            Node *destNode = getIDInNodelist(nodelist, currNode->neighbours->nodes[j]->id);
-            assert(destNode != NULL);
+            // get pointer to node in nodelist
+            Node *destNode = getIDInNodelist(nodelist, currNode->neighbours->nodes[j]->id); // TODO: unnecessary?
 
             // if currNode's ID is already a neighbour of destNode...
             if (getIDInNodelist(destNode->neighbours, currNode->id) != NULL) {
@@ -549,7 +552,9 @@ void completeConnections() {
                 if (strcmp(destNode->id->value, currNode->id->value) > 0) {
                     throwError("If there is already a connection A->B, B->A is not allowed");
                 }
-            } else {
+            }
+            // add to the destNode's neighbour list
+            else {
                 if (!addNodeToNodeList(destNode->neighbours, currNode)) {
                     throwError("Couldn't add backwards vertex");
                 }
@@ -562,12 +567,16 @@ void completeConnections() {
 
 // prints the output of the program
 void printResult(NodeID *endNodeID) {
+    // print all NodeIDs with its values
     for (unsigned int i = 0; i < nodelist->len; i++) {
         printf("%s:%u\n", nodelist->nodes[i]->id->value, nodelist->nodes[i]->value);
     }
+
+    // print endNodeID
     printf("E:%s\n", endNodeID->value);
 }
 
+// executes the program
 void letAntMove() {
     Node *currNode = getIDInNodelist(nodelist, startingNodeID);
 
