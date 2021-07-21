@@ -122,7 +122,7 @@ bool addCharToNodeID(NodeID *id, char c) {
 
     // add char to NodeID
     if (c == '\0') {
-        id->value[id->len] = c; // TODO: Shrink
+        id->value[id->len] = c;
         id->size = id->len;
     } else {
         id->value[id->len++] = c;
@@ -346,7 +346,6 @@ void parseRightSide(Node *leftSideNode) {
         if (id == NULL) {
             freeNodeList(list);
             throwError("Couldn't create a NodeID while parsing right side");
-            exit(-1); // unnecessary
         }
 
         node = createNewNode();
@@ -544,7 +543,7 @@ void completeConnections() {
         // check all currNode's neighbours
         for (unsigned int j = 0; j < currNode->neighbours->len; j++) {
             // get pointer to node in nodelist
-            Node *destNode = getIDInNodelist(nodelist, currNode->neighbours->nodes[j]->id); // TODO: unnecessary?
+            Node *destNode = currNode->neighbours->nodes[j];
 
             // if currNode's ID is already a neighbour of destNode...
             if (getIDInNodelist(destNode->neighbours, currNode->id) != NULL) {
