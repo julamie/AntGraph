@@ -246,23 +246,23 @@ bool addNodeToNodeList(NodeList *list, Node *node) {
 
 // -------------------------------------------------------------
 
-// reads a number string from stdin, converts and returns it
-unsigned int parseValue() {
+// reads a number string from stdin, converts and returns it, if there was an error, it returns -1
+int parseValue() {
     char valueStr[11];
     unsigned long int value;
 
     // parse number as a string
-    if(scanf("%11[0-9]", valueStr) != 1) throwError("Error when parsing value. Unsigned int expected");
+    if(scanf("%11[0-9]", valueStr) != 1) return -1;
 
-    if (getchar() != '\n') throwError("Error when parsing value. Too long ID (0 <= ID <= 2^32-1) or no Linefeed after ID");
+    if (getchar() != '\n') return -1;
 
     // convert it to a long unsigned int
     value = strtol(valueStr, NULL, 10);
 
     // value has to be in bounds
-    if (value > 4294967296 - 1) throwError("Number of steps has to be between 0 and 2^32-1");
+    if (value > 4294967296 - 1) return -1;
 
-    return (unsigned int) value;
+    return (int) value;
 }
 
 // gives a node its ID, returns either pointer to Node or NULL if no node will be needed
@@ -403,7 +403,16 @@ void parseRightSide(Node *leftSideNode) {
     } while (currChar == ',');
 
     // change value of left hand side node
-    if (currChar == '-') leftSideNode->value = parseValue();
+    if (currChar == '-') {
+        int value = parseValue();
+
+        if (value == -1) {
+            freeNodeList(list);
+            throwError("Error when parsing right side. Invalid value");
+        }
+
+        leftSideNode->value = (unsigned int) value;
+    }
     else if (currChar != '\n') {
         freeNodeList(list);
         throwError("Error when parsing right side. Comma, dash or linefeed expected");
@@ -439,7 +448,9 @@ void parseNumSteps() {
     if (getchar() != 'I') throwError("Error when parsing number of steps. 'I' expected");
     if (getchar() != ':') throwError("Error when parsing number of steps. ':' after 'I' expected");
 
-    numOfSteps = parseValue();
+    int value = parseValue();
+    if (value == -1) throwError("Invalid number of steps");
+    else numOfSteps = value;
 
     if (getchar() != EOF) throwError("Error when parsing number of steps. End of file expected");
 }
@@ -564,6 +575,11 @@ void completeConnections() {
 
 // -----------------------------------------------------------------------
 
+void checkGraph() {
+    if (nodelist->len == 0) throwError("Graph doesn't have any nodes");
+    if (getIDInNodelist(nodelist, startingNodeID) == NULL) throwError("Starting node ID is not in graph");
+}
+
 // prints the output of the program
 void printResult(NodeID *endNodeID) {
     // print all NodeIDs with its values
@@ -579,11 +595,17 @@ void printResult(NodeID *endNodeID) {
 void letAntMove() {
     Node *currNode = getIDInNodelist(nodelist, startingNodeID);
 
-    // ant walks the graph down
-    while (numOfSteps > 0) {
-        Node *nextNode = currNode->neighbours->nodes[currNode->value++ % currNode->neighbours->len];
-        currNode = nextNode;
-        numOfSteps--;
+    // if the starting node is isolated, the ant will just stay on this node and count the node's value up
+    if (currNode->neighbours->len == 0) {
+        currNode->value += numOfSteps;
+    }
+    // the ant walks normally the graph down
+    else {
+        while (numOfSteps > 0) {
+            Node *nextNode = currNode->neighbours->nodes[currNode->value++ % currNode->neighbours->len];
+            currNode = nextNode;
+            numOfSteps--;
+        }
     }
     printResult(currNode->id);
 }
@@ -610,6 +632,7 @@ int main() {
     completeNodelist();
     replaceNeighbourNodes();
     completeConnections();
+    checkGraph();
     letAntMove();
     freeMemory();
 
