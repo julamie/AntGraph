@@ -16,6 +16,7 @@ typedef struct {
     NodeID *id;
     NodeList *neighbours;
     unsigned int value;
+    bool wasOnLeftSide; // is true if NodeID was already on left side of input
 } Node;
 
 struct NodeList{
@@ -26,7 +27,6 @@ struct NodeList{
 
 // -------------------------------------------------------------
 
-// TODO: Fix bug when the ID has already been used
 NodeList *nodelist; // holds all pointers to nodes in the graph
 NodeID *startingNodeID;
 unsigned int numOfSteps;
@@ -132,6 +132,7 @@ Node* createNewNode() {
     node->id = NULL;
     node->value = 0;
     node->neighbours = NULL;
+    node->wasOnLeftSide = false;
 
     return node;
 }
@@ -324,9 +325,16 @@ Node* parseLeftSide() {
                 throwError("Couldn't add node to nodelist");
             }
         } else {
+            // check if ID was already in left side of input
+            if (node->wasOnLeftSide == true) {
+                freeNodeID(id);
+                throwError("Same ID was already on left side");
+            }
+
             freeNodeID(id);
         }
 
+        node->wasOnLeftSide = true;
         return node;
     }
 }
