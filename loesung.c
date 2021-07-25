@@ -56,22 +56,22 @@ void freeNode(Node *node) {
 }
 
 // frees a nodelist
-void freeNodeList(NodeList *list) {
-    for (unsigned int i = 0; i < list->len; i++) {
-        if (list->nodes[i] != NULL) {
-            freeNode(list->nodes[i]);
-            list->nodes[i] = NULL;
+void freeNodeList() {
+    for (unsigned int i = 0; i < nodelist->len; i++) {
+        if (nodelist->nodes[i] != NULL) {
+            freeNode(nodelist->nodes[i]);
+            nodelist->nodes[i] = NULL;
         }
     }
 
-    free(list->nodes);
-    free(list);
+    free(nodelist->nodes);
+    free(nodelist);
 }
 
 // frees all allocated memory
 void freeMemory() {
     freeNodeID(startingNodeID);
-    freeNodeList(nodelist);
+    freeNodeList();
 }
 
 // prints an error message and aborts the program
@@ -318,13 +318,6 @@ Node* parseLeftSide() {
             }
             addIDToNode(node, id);
 
-            // create neighbour list
-            node->neighbours = createNewNodeList();
-            if (node->neighbours == NULL) {
-                freeNode(node);
-                throwError("Couldn't create new neighbour list in parseLeftSide");
-            }
-
             // add the node to nodelist
             if(!addNodeToNodeList(nodelist, node)) {
                 freeNode(node);
@@ -350,7 +343,7 @@ void parseRightSide(Node *leftSideNode) {
     do {
         id = createNewID();
         if (id == NULL) {
-            freeNodeList(list);
+            freeNeighbourList(list);
             throwError("Couldn't create a NodeID while parsing right side");
         }
 
@@ -361,7 +354,7 @@ void parseRightSide(Node *leftSideNode) {
 
             if (!addCharToNodeID(id, currChar)) {
                 freeNodeID(id);
-                freeNodeList(list);
+                freeNeighbourList(list);
                 throwError("Couldn't allocate memory for more letters in neighbour NodeID");
             }
 
@@ -369,7 +362,7 @@ void parseRightSide(Node *leftSideNode) {
         }
         if (!addCharToNodeID(id, '\0')) {
             freeNodeID(id);
-            freeNodeList(list);
+            freeNeighbourList(list);
             throwError("Couldn't allocate memory for string terminator in neighbour NodeID");
         }
 
@@ -379,14 +372,14 @@ void parseRightSide(Node *leftSideNode) {
 
             // empty right side with value redefinition is allowed
             if (!(list->len == 0 && currChar == '-')) {
-                freeNodeList(list);
+                freeNeighbourList(list);
                 throwError("Error while parsing right side. Invalid ID");
             }
         }
         // loops are not allowed
         else if (strcmp(leftSideNode->id->value, id->value) == 0) {
             freeNodeID(id);
-            freeNodeList(list);
+            freeNeighbourList(list);
             throwError("Loops are not allowed in graph");
         } else {
             Node *node = getIDInNodelist(nodelist, id);
@@ -396,33 +389,32 @@ void parseRightSide(Node *leftSideNode) {
                 node = createNewNode();
                 if (node == NULL) {
                     freeNodeID(id);
-                    freeNodeList(list);
+                    freeNeighbourList(list);
                     throwError("Couldn't create a new node in parseRightSide");
                 }
                 addIDToNode(node, id);
 
-                // create neighbour list
-                node->neighbours = createNewNodeList();
-                if (node->neighbours == NULL) {
-                    freeNode(node);
-                    freeNodeList(list);
-                    throwError("Couldn't create a new neighbour list in parseRightSide");
-                }
-
                 // add to nodelist
                 if (!addNodeToNodeList(nodelist, node)) {
                     freeNode(node);
-                    freeNodeList(list);
+                    freeNeighbourList(list);
                     throwError("Couldn't add node to nodelist in parseRightSide");
                 }
             } else {
+                // check if id is already in list
+                if (getIDInNodelist(list, id) != NULL) {
+                    freeNodeID(id);
+                    freeNeighbourList(list);
+                    throwError("Declaration of the same ID in one line");
+                }
+
                 freeNodeID(id); // id is not necessary anymore
             }
 
             // add id pointer to list
             if (!addNodeToNodeList(list, node)) {
                 freeNode(node);
-                freeNodeList(list);
+                freeNeighbourList(list);
                 throwError("Couldn't add node to neighbour nodeList");
             }
         }
@@ -433,19 +425,18 @@ void parseRightSide(Node *leftSideNode) {
         int value = parseValue();
 
         if (value == -1) {
-            freeNodeList(list);
+            freeNeighbourList(list);
             throwError("Error when parsing right side. Invalid value");
         }
 
         leftSideNode->value = (unsigned int) value;
     }
     else if (currChar != '\n') {
-        freeNodeList(list);
+        freeNeighbourList(list);
         throwError("Error when parsing right side. Comma, dash or linefeed expected");
     }
 
     // set nodelist as neighbour IDList for leftSideNode
-    if (leftSideNode->neighbours != NULL) freeNodeList(leftSideNode->neighbours);
     leftSideNode->neighbours = list;
 }
 
@@ -495,11 +486,23 @@ void scanContents() {
         if (currNode != NULL) {
             parseRightSide(currNode);
         }
+
     } while (currNode != NULL);
 
     // parse the ID of the starting node and the number of steps
     parseStartingNodeID();
     parseNumSteps();
+}
+
+void addMissingNeighbourLists() {
+    for (unsigned int i = 0; i < nodelist->len; i++) {
+        if (nodelist->nodes[i]->neighbours == NULL) {
+            NodeList *list = createNewNodeList();
+            if (list == NULL) throwError("Couldn't create neighbourList in addMissingNeighbourList");
+
+            nodelist->nodes[i]->neighbours = list;
+        }
+    }
 }
 
 // adds connection B->A if A->B exists and checks if not both are already present
@@ -584,23 +587,12 @@ void init() {
     }
 }
 
-void printAll() {
-    for (unsigned int i = 0; i < nodelist->len; i++) {
-        Node *currNode = nodelist->nodes[0];
-        printf("%s:%u\n", currNode->id->value, currNode->value);
-        if (currNode->neighbours->len > 0) printf("\t");
-        for (unsigned int j = 0; j < currNode->neighbours->len; j++) {
-            printf("%s, ", currNode->neighbours->nodes[j]->id->value);
-        }
-    }
-}
-
 int main() {
     init();
     scanContents();
+    addMissingNeighbourLists();
     completeConnections();
     checkGraph();
-    printAll();
     letAntMove();
     freeMemory();
 
