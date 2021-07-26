@@ -6,11 +6,10 @@ if [ "$1" == test ]; then
   # add all results of testfiles to result.txt
   for f in example_testcases/*.stdin;
   do
-    echo "running $f"; (./loesung < "$f") >> result.txt ;
+    echo "running $f"; (time ./loesung < "$f") >> result.txt
   done
 
   # check for differences
-  echo check:
   diff result.txt realRes.txt
   echo check complete.
 
