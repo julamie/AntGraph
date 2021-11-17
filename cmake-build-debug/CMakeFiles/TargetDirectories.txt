@@ -1,3 +1,0 @@
-C:/Users/Justin/CLionProjects/AntGraph/cmake-build-debug/CMakeFiles/AntGraph.dir
-C:/Users/Justin/CLionProjects/AntGraph/cmake-build-debug/CMakeFiles/edit_cache.dir
-C:/Users/Justin/CLionProjects/AntGraph/cmake-build-debug/CMakeFiles/rebuild_cache.dir
